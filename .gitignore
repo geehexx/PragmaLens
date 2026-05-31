@@ -4,11 +4,24 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.pyre/
 
 # Build artifacts
 build/
 dist/
 *.egg-info/
+pip-wheel-metadata/
+
+# Coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Hook/log/temp outputs
+.nox/
+.tox/
+*.log
 
 # IDE/editor
 .vscode/
@@ -20,11 +33,12 @@ out/
 trace/
 visualization/
 /tmp/
-*.log
 
 # Local reports and agent artifacts
 local_validation_report.md
 *.local.json
+.agents/
+docs/superpowers/
 
 # Secrets and env
 .env
@@ -33,3 +47,7 @@ local_validation_report.md
 # Model and HF caches
 .cache/
 .huggingface/
+
+# OS noise
+.DS_Store
+Thumbs.db

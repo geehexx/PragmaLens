@@ -24,6 +24,10 @@ dependencies = [
 [dependency-groups]
 dev = [
   "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "ruff>=0.6.0",
+  "mypy>=1.11.0",
+  "lefthook>=1.8.0",
 ]
 
 [project.scripts]
@@ -31,7 +35,39 @@ pragmalens = "pragmalens.cli:app"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q --strict-markers"
+markers = [
+  "live_smoke: optional live integration tests; excluded from default CI",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["pragmalens", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+check_untyped_defs = false
 
 [tool.uv]
 default-groups = ["dev"]
