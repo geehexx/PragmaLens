@@ -1,0 +1,35 @@
+# Python env and caches
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+
+# Local outputs and scratch
+out/
+trace/
+visualization/
+/tmp/
+*.log
+
+# Local reports and agent artifacts
+local_validation_report.md
+*.local.json
+
+# Secrets and env
+.env
+.env.*
+
+# Model and HF caches
+.cache/
+.huggingface/

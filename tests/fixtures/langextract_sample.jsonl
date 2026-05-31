@@ -1,0 +1,3 @@
+{"_meta": {"provider": "captured", "model": "gemini-2.5-flash", "prompt_hash": "sha256:fixture-pr03-v1", "example_set": "technical_plan_core:v0.1"}}
+{"char_interval": [0, 4], "extraction_text": "When", "label": "condition", "kind": "condition"}
+{"char_interval": null, "extraction_text": "ungrounded", "label": "claim", "kind": "claim"}
