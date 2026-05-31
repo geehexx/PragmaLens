@@ -1,6 +1,6 @@
 # PragmaLens v0.1 (PR-01..PR-04 Bootstrap)
 
-Minimal bootstrap for a Python natural-language evidence and discourse audit engine.
+PragmaLens is a Python natural-language evidence and discourse audit engine bootstrap, aligned to the v5 implementation package.
 
 ## v0.1 Scope Constraints
 
@@ -10,7 +10,7 @@ Minimal bootstrap for a Python natural-language evidence and discourse audit eng
 - No PDF/DOCX parsing in v0.1.
 - No web retrieval/external truth lookup in v0.1.
 
-## Pipeline Stages (v0.1 through PR-04)
+## Stage Graph (Current)
 
 - `normalize_document`
 - `segment_and_index_spans`
@@ -26,7 +26,7 @@ uv venv -p python3.12 .venv
 source .venv/bin/activate
 uv sync
 uv run pragmalens schema export --out schemas/pragmalens_report.schema.json --model report
-uv run pragmalens run --input examples/sample.md --report-out out/report.json --manifest-out out/manifest.json
+uv run pragmalens run --input /path/to/input.md --report-out out/report.json --manifest-out out/manifest.json
 ```
 
 ## CLI
@@ -34,9 +34,37 @@ uv run pragmalens run --input examples/sample.md --report-out out/report.json --
 - `pragmalens schema export --out <path> --model report|manifest|span_ref`
 - `pragmalens run --input <markdown_or_txt> --report-out <path> --manifest-out <path> [--trace-dir trace] [--profile default]`
 
+## Quality Gates
+
+```bash
+uv lock --check
+uv sync --frozen
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy pragmalens tests
+uv run pytest -q -m "not live_smoke"
+```
+
+## Hook Setup
+
+```bash
+uv run lefthook install
+```
+
+## Security Scan
+
+- Local binary (if installed):
+
+```bash
+gitleaks dir . --config .gitleaks.toml
+gitleaks git --config .gitleaks.toml
+```
+
+- CI uses `.github/workflows/ci.yml` and `.gitleaks.toml`.
+
 ## Offline-first and live smoke separation
 
-- Default tests are offline and use captured fixture outputs for LangExtract and GLiNER2.
+- Default tests are offline and use captured fixtures for LangExtract and GLiNER2.
 - Live smoke tests are marked `live_smoke` and skipped by default.
 - MiniCheck primary target install path (live smoke only):
 
