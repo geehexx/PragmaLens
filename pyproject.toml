@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pragmalens"
+version = "0.1.0"
+description = "PragmaLens v0.1: natural-language evidence and discourse audit engine bootstrap"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary" }
+authors = [{ name = "Andrew Crozier" }]
+dependencies = [
+  "typer>=0.12",
+  "click>=8.1",
+  "pydantic>=2.7",
+  "spacy>=3.8",
+  "langextract>=1.5.0",
+  "gliner2>=1.3.1",
+  "transformers>=5.0.0",
+  "sentence-transformers>=5.0.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+pragmalens = "pragmalens.cli:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.uv]
+default-groups = ["dev"]
