@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import json
 
 
 @dataclass
@@ -29,11 +29,9 @@ DEFAULT_PROFILE = {
 def load_profile(name: str = "default") -> Profile:
     profiles_dir = Path("pragmalens/fixtures")
     path = profiles_dir / f"{name}.profile.json"
-    payload: dict[str, Any]
-    if path.exists():
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    else:
-        payload = DEFAULT_PROFILE
+    payload: dict[str, Any] = (
+        json.loads(path.read_text(encoding="utf-8")) if path.exists() else DEFAULT_PROFILE
+    )
 
     return Profile(
         name=payload.get("name", name),

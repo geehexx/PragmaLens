@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from pragmalens.core import run_pr02_pipeline
 from pragmalens.stages import default_pr02_stages, is_valid_span, validate_pr02_graph
@@ -9,7 +10,7 @@ def test_pr02_graph_validates() -> None:
     validate_pr02_graph(stages)
 
 
-def test_pr02_pipeline_outputs_spacy_artifacts_and_valid_cues(tmp_path) -> None:
+def test_pr02_pipeline_outputs_spacy_artifacts_and_valid_cues(tmp_path: Path) -> None:
     text = "If we must ship now, we should not delay [1]."
     report_out = tmp_path / "out" / "report.json"
     trace_dir = tmp_path / "trace"
@@ -34,7 +35,7 @@ def test_pr02_pipeline_outputs_spacy_artifacts_and_valid_cues(tmp_path) -> None:
         assert is_valid_span(text, cue["start_char"], cue["end_char"])
 
 
-def test_spacy_stage_emits_no_findings_only_artifacts(tmp_path) -> None:
+def test_spacy_stage_emits_no_findings_only_artifacts(tmp_path: Path) -> None:
     report, _ = run_pr02_pipeline(
         text="We may proceed when validated.",
         document_id="doc-2",

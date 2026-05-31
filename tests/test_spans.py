@@ -1,6 +1,6 @@
 import pytest
-
 from pragmalens.models import SpanRef
+from pydantic import ValidationError
 
 
 def test_valid_span_roundtrip() -> None:
@@ -18,10 +18,10 @@ def test_valid_span_roundtrip() -> None:
     ],
 )
 def test_invalid_spans_rejected(start: int, end: int) -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         SpanRef(document_id="doc-1", start_char=start, end_char=end, text="")
 
 
 def test_text_length_mismatch_rejected() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         SpanRef(document_id="doc-1", start_char=0, end_char=4, text="abc")

@@ -1,9 +1,10 @@
 import json
+from pathlib import Path
 
 from pragmalens.schema import export_schema
 
 
-def test_schema_export_report(tmp_path) -> None:
+def test_schema_export_report(tmp_path: Path) -> None:
     out = tmp_path / "report.schema.json"
     path = export_schema("report", str(out))
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -11,7 +12,7 @@ def test_schema_export_report(tmp_path) -> None:
     assert "properties" in data
 
 
-def test_schema_export_invalid_model(tmp_path) -> None:
+def test_schema_export_invalid_model(tmp_path: Path) -> None:
     try:
         export_schema("unknown", str(tmp_path / "x.json"))
     except ValueError as exc:

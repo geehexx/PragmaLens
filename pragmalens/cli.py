@@ -51,8 +51,12 @@ def run(
     report_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
-    report_path.write_text(json.dumps(report.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8")
-    manifest_path.write_text(json.dumps(manifest.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(report.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
+    )
+    manifest_path.write_text(
+        json.dumps(manifest.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
+    )
     typer.echo("ok")
 
 

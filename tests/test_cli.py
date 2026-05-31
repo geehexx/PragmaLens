@@ -1,11 +1,11 @@
 import json
-
-from typer.testing import CliRunner
+from pathlib import Path
 
 from pragmalens.cli import app
+from typer.testing import CliRunner
 
 
-def test_cli_run_produces_report_and_manifest(tmp_path) -> None:
+def test_cli_run_produces_report_and_manifest(tmp_path: Path) -> None:
     src = tmp_path / "sample.md"
     src.write_text("# Plan\n\nA claim.", encoding="utf-8")
 
@@ -38,7 +38,7 @@ def test_cli_run_produces_report_and_manifest(tmp_path) -> None:
     assert manifest["verifier_stub"] is True
 
 
-def test_cli_schema_export(tmp_path) -> None:
+def test_cli_schema_export(tmp_path: Path) -> None:
     out = tmp_path / "schemas" / "manifest.schema.json"
     runner = CliRunner()
     result = runner.invoke(app, ["schema", "export", "--out", str(out), "--model", "manifest"])

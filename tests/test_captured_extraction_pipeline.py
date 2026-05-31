@@ -1,15 +1,23 @@
+from pathlib import Path
+from typing import Any
+
 from pragmalens.extraction import (
     merge_and_dedupe_candidates,
     normalize_gliner2_output,
     normalize_langextract_records,
 )
-from pragmalens.pr04 import run_captured_extraction
+from pragmalens.pipeline.captured_extraction import run_captured_extraction_pipeline
 
 
 def test_langextract_quarantines_missing_char_interval() -> None:
     text = "When we act"
-    records = [
-        {"char_interval": [0, 4], "extraction_text": "When", "label": "condition", "kind": "condition"},
+    records: list[dict[str, Any]] = [
+        {
+            "char_interval": [0, 4],
+            "extraction_text": "When",
+            "label": "condition",
+            "kind": "condition",
+        },
         {"char_interval": None, "extraction_text": "x", "label": "claim", "kind": "claim"},
     ]
 
@@ -24,19 +32,32 @@ def test_gliner2_relations_preserved() -> None:
     payload = {
         "entities": [
             {"start_char": 0, "end_char": 5, "label": "agent", "kind": "entity", "confidence": 0.9},
-            {"start_char": 6, "end_char": 11, "label": "action", "kind": "claim", "confidence": 0.8},
+            {
+                "start_char": 6,
+                "end_char": 11,
+                "label": "action",
+                "kind": "claim",
+                "confidence": 0.8,
+            },
         ],
         "relations": [{"head": 1, "tail": 0, "label": "owned_by"}],
     }
     candidates = normalize_gliner2_output(payload, text)
     assert len(candidates) == 2
-    action = [c for c in candidates if c.label == "action"][0]
+    action = next(c for c in candidates if c.label == "action")
     assert action.relations
 
 
 def test_merge_dedupe_preserves_provenance() -> None:
     text = "When AI acts"
-    records = [{"char_interval": [0, 4], "extraction_text": "When", "label": "condition", "kind": "condition"}]
+    records = [
+        {
+            "char_interval": [0, 4],
+            "extraction_text": "When",
+            "label": "condition",
+            "kind": "condition",
+        }
+    ]
     valid, _, _ = normalize_langextract_records(records, text)
     dup = valid[0].model_copy(deep=True)
     dup.provenance = ["gliner2"]
@@ -46,9 +67,9 @@ def test_merge_dedupe_preserves_provenance() -> None:
     assert sorted(merged[0].provenance) == ["gliner2", "langextract"]
 
 
-def test_captured_pipeline_writes_traces(tmp_path) -> None:
+def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
     text = "When AI acts"
-    out = run_captured_extraction(
+    out = run_captured_extraction_pipeline(
         text=text,
         langextract_jsonl="tests/fixtures/langextract_sample.jsonl",
         gliner2_json="tests/fixtures/gliner2_sample.json",

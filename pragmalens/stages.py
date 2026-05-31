@@ -4,11 +4,17 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 import spacy
 
-from pragmalens.extraction import load_json, load_jsonl, merge_and_dedupe_candidates, normalize_gliner2_output, normalize_langextract_records
+from pragmalens.extraction import (
+    load_json,
+    load_jsonl,
+    merge_and_dedupe_candidates,
+    normalize_gliner2_output,
+    normalize_langextract_records,
+)
 from pragmalens.models import EvidenceCandidate, NeutralReport, RunManifest
 from pragmalens.profiles import Profile
 
@@ -69,7 +75,9 @@ class SegmentAndIndexSpansStage:
 
     def run(self, context: RunContext) -> StageResult:
         doc = self._nlp(context.text)
-        sentences = [{"start_char": s.start_char, "end_char": s.end_char, "text": s.text} for s in doc.sents]
+        sentences = [
+            {"start_char": s.start_char, "end_char": s.end_char, "text": s.text} for s in doc.sents
+        ]
 
         paragraphs: list[dict[str, Any]] = []
         offset = 0
@@ -90,9 +98,9 @@ class SpacySubstrateStage:
     input_contract = "normalized_text + span_index"
     output_contract = "tokens + cues"
 
-    MODAL = {"must", "shall", "should", "may", "might", "will"}
-    CONDITION = {"if", "unless", "when", "provided"}
-    NEGATION = {"not", "no", "never"}
+    MODAL: ClassVar[set[str]] = {"must", "shall", "should", "may", "might", "will"}
+    CONDITION: ClassVar[set[str]] = {"if", "unless", "when", "provided"}
+    NEGATION: ClassVar[set[str]] = {"not", "no", "never"}
 
     def __init__(self) -> None:
         nlp = spacy.blank("en")
@@ -105,7 +113,14 @@ class SpacySubstrateStage:
         cues: list[dict[str, Any]] = []
 
         for t in doc:
-            tokens.append({"text": t.text, "lower": t.lower_, "start_char": t.idx, "end_char": t.idx + len(t.text)})
+            tokens.append(
+                {
+                    "text": t.text,
+                    "lower": t.lower_,
+                    "start_char": t.idx,
+                    "end_char": t.idx + len(t.text),
+                }
+            )
             lower = t.lower_
             if lower in self.MODAL:
                 cues.append(_cue("modal", t.idx, t.idx + len(t.text), t.text))
@@ -115,10 +130,15 @@ class SpacySubstrateStage:
                 cues.append(_cue("negation", t.idx, t.idx + len(t.text), t.text))
 
         for m in re.finditer(r"\[[0-9]+\]|\([0-9]+\)", context.text):
-            cues.append(_cue("citation_like", m.start(), m.end(), context.text[m.start():m.end()]))
+            cues.append(
+                _cue("citation_like", m.start(), m.end(), context.text[m.start() : m.end()])
+            )
 
         context.artifacts[self.id] = {
-            "sentences": [{"start_char": s.start_char, "end_char": s.end_char, "text": s.text} for s in doc.sents],
+            "sentences": [
+                {"start_char": s.start_char, "end_char": s.end_char, "text": s.text}
+                for s in doc.sents
+            ],
             "tokens": tokens,
             "cues": cues,
         }
@@ -134,7 +154,9 @@ class LangExtractCapturedStage:
     def run(self, context: RunContext) -> StageResult:
         assert context.profile is not None
         records = load_jsonl(context.profile.langextract_fixture)
-        valid, quarantined, meta = normalize_langextract_records(records, context.text, document_id=context.document_id)
+        valid, quarantined, meta = normalize_langextract_records(
+            records, context.text, document_id=context.document_id
+        )
         context.metadata["langextract"] = meta
         context.candidates.extend(valid)
         context.quarantined_candidates.extend(quarantined)
@@ -231,8 +253,15 @@ def validate_stage_graph(stages: list[PipelineStage]) -> None:
         raise ValueError(f"Invalid stage graph. expected={expected} actual={actual}")
 
 
-def build_report_and_manifest(context: RunContext, input_path: str, report_path: str, stage_results: list[StageResult]) -> tuple[NeutralReport, RunManifest]:
-    report = NeutralReport(document_id=context.document_id, findings=[], candidates=context.candidates, warnings=context.warnings)
+def build_report_and_manifest(
+    context: RunContext, input_path: str, report_path: str, stage_results: list[StageResult]
+) -> tuple[NeutralReport, RunManifest]:
+    report = NeutralReport(
+        document_id=context.document_id,
+        findings=[],
+        candidates=context.candidates,
+        warnings=context.warnings,
+    )
     manifest = RunManifest(
         run_id=f"run-{context.document_id}",
         document_id=context.document_id,
@@ -252,6 +281,7 @@ def build_report_and_manifest(context: RunContext, input_path: str, report_path:
 
 def write_traces(trace_dir: Path, context: RunContext, stage_results: list[StageResult]) -> None:
     trace_dir.mkdir(parents=True, exist_ok=True)
+
     def dump(name: str, payload: Any) -> None:
         (trace_dir / name).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
@@ -261,7 +291,10 @@ def write_traces(trace_dir: Path, context: RunContext, stage_results: list[Stage
     dump("langextract_candidates.json", context.artifacts.get("langextract_discourse", {}))
     dump("gliner2_candidates.json", context.artifacts.get("gliner2_candidates", {}))
     dump("evidence_normalization.json", context.artifacts.get("evidence_normalizer", {}))
-    dump("quarantined_candidates.json", [c.model_dump(mode="json") for c in context.quarantined_candidates])
+    dump(
+        "quarantined_candidates.json",
+        [c.model_dump(mode="json") for c in context.quarantined_candidates],
+    )
     dump("stage_results.json", [r.__dict__ for r in stage_results])
 
 

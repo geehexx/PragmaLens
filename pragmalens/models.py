@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-class CandidateStatus(str, Enum):
+class CandidateStatus(StrEnum):
     VALID = "valid"
     QUARANTINED = "quarantined"
     DUPLICATE = "duplicate"
@@ -21,13 +21,13 @@ class SpanRef(BaseModel):
     text: str = Field(default="")
 
     @model_validator(mode="after")
-    def _validate_offsets(self) -> "SpanRef":
+    def _validate_offsets(self) -> SpanRef:
         if self.end_char <= self.start_char:
             raise ValueError("end_char must be greater than start_char")
         return self
 
     @model_validator(mode="after")
-    def _validate_text_length(self) -> "SpanRef":
+    def _validate_text_length(self) -> SpanRef:
         if self.text and len(self.text) != (self.end_char - self.start_char):
             raise ValueError("text length must match span width when text is provided")
         return self
@@ -48,7 +48,7 @@ class EvidenceCandidate(BaseModel):
 
 class NeutralReport(BaseModel):
     report_version: str = "0.1"
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     document_id: str = Field(min_length=1)
     source_format: str = Field(default="markdown_or_text")
     findings: list[dict[str, Any]] = Field(default_factory=list)

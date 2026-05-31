@@ -21,7 +21,11 @@ def _quarantine_span(document_id: str) -> SpanRef:
 
 
 def normalize_langextract_records(
-    records: list[dict[str, Any]], text: str, *, document_id: str = "doc", source: str = "langextract"
+    records: list[dict[str, Any]],
+    text: str,
+    *,
+    document_id: str = "doc",
+    source: str = "langextract",
 ) -> tuple[list[EvidenceCandidate], list[EvidenceCandidate], dict[str, Any]]:
     valid: list[EvidenceCandidate] = []
     quarantined: list[EvidenceCandidate] = []
@@ -106,7 +110,9 @@ def normalize_langextract_records(
                 label=label,
                 kind=kind,
                 status=CandidateStatus.VALID,
-                span=SpanRef(document_id=document_id, start_char=start, end_char=end, text=span_text),
+                span=SpanRef(
+                    document_id=document_id, start_char=start, end_char=end, text=span_text
+                ),
                 provenance=[source],
                 attributes={"raw": rec},
             )
@@ -122,7 +128,12 @@ def normalize_langextract_records(
 
 
 def normalize_gliner2_output(
-    payload: dict[str, Any], text: str, *, document_id: str = "doc", source: str = "gliner2", label_map: dict[str, str] | None = None
+    payload: dict[str, Any],
+    text: str,
+    *,
+    document_id: str = "doc",
+    source: str = "gliner2",
+    label_map: dict[str, str] | None = None,
 ) -> list[EvidenceCandidate]:
     candidates: list[EvidenceCandidate] = []
     entities = payload.get("entities", [])
@@ -142,7 +153,9 @@ def normalize_gliner2_output(
                 label=mapped_label,
                 kind=ent.get("kind", "claim"),
                 status=CandidateStatus.VALID,
-                span=SpanRef(document_id=document_id, start_char=start, end_char=end, text=text[start:end]),
+                span=SpanRef(
+                    document_id=document_id, start_char=start, end_char=end, text=text[start:end]
+                ),
                 confidence=float(ent.get("confidence", 0.0)),
                 provenance=[source],
                 relations=[r for r in relations if r.get("head") == idx or r.get("tail") == idx],
@@ -160,7 +173,13 @@ def merge_and_dedupe_candidates(candidates: list[EvidenceCandidate]) -> list[Evi
         span_key = (cand.span.document_id, cand.span.start_char, cand.span.end_char)
         span_labels.setdefault(span_key, set()).add(cand.label)
 
-        key = (cand.span.document_id, cand.span.start_char, cand.span.end_char, cand.label, cand.kind)
+        key = (
+            cand.span.document_id,
+            cand.span.start_char,
+            cand.span.end_char,
+            cand.label,
+            cand.kind,
+        )
         if key not in merged:
             merged[key] = cand
             continue
@@ -173,7 +192,6 @@ def merge_and_dedupe_candidates(candidates: list[EvidenceCandidate]) -> list[Evi
     result = list(merged.values())
     for cand in result:
         span_key = (cand.span.document_id, cand.span.start_char, cand.span.end_char)
-        if len(span_labels.get(span_key, set())) > 1:
-            if "label_conflict" not in cand.warnings:
-                cand.warnings.append("label_conflict")
+        if len(span_labels.get(span_key, set())) > 1 and "label_conflict" not in cand.warnings:
+            cand.warnings.append("label_conflict")
     return result
