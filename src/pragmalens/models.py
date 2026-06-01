@@ -14,6 +14,13 @@ class CandidateStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class VerificationStatus(StrEnum):
+    SUPPORTED = "supported"
+    UNSUPPORTED = "unsupported"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+    VERIFIER_ERROR = "verifier_error"
+
+
 class SpanRef(BaseModel):
     document_id: str = Field(min_length=1)
     start_char: int = Field(ge=0)
@@ -46,13 +53,31 @@ class EvidenceCandidate(BaseModel):
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 
+class VerificationVerdict(BaseModel):
+    candidate_id: str = Field(min_length=1)
+    status: VerificationStatus
+    rationale: str = Field(min_length=1)
+    evidence_ids: list[str] = Field(default_factory=list)
+    error: str | None = None
+
+
+class Finding(BaseModel):
+    finding_id: str = Field(min_length=1)
+    candidate_id: str = Field(min_length=1)
+    verdict: VerificationStatus
+    summary: str = Field(min_length=1)
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
 class NeutralReport(BaseModel):
     report_version: str = "0.1"
+    run_id: str = Field(min_length=1)
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     document_id: str = Field(min_length=1)
     source_format: str = Field(default="markdown_or_text")
-    findings: list[dict[str, Any]] = Field(default_factory=list)
+    findings: list[Finding] = Field(default_factory=list)
     candidates: list[EvidenceCandidate] = Field(default_factory=list)
+    verification: list[VerificationVerdict] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -66,7 +91,8 @@ class RunManifest(BaseModel):
     model_registry: dict[str, str] = Field(default_factory=dict)
     stages_requested: list[str] = Field(default_factory=lambda: ["pr01_normalize"])
     stage_health: dict[str, str] = Field(default_factory=lambda: {"pr01_normalize": "ok"})
-    verifier_stub: bool = True
+    artifacts: dict[str, str] = Field(default_factory=dict)
+    verifier_stub: bool = False
 
     @field_validator("stages_requested")
     @classmethod

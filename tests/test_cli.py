@@ -1,8 +1,9 @@
 import json
 from pathlib import Path
 
-from pragmalens.cli import app
 from typer.testing import CliRunner
+
+from pragmalens.cli import app
 
 
 def test_cli_run_produces_report_and_manifest(tmp_path: Path) -> None:
@@ -35,7 +36,8 @@ def test_cli_run_produces_report_and_manifest(tmp_path: Path) -> None:
 
     assert report["document_id"] == "sample"
     assert report["findings"] == []
-    assert manifest["verifier_stub"] is True
+    assert manifest["verifier_stub"] is False
+    assert "verify_claims" in manifest["stages_requested"]
 
 
 def test_cli_schema_export(tmp_path: Path) -> None:

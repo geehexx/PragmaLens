@@ -15,7 +15,14 @@ from pragmalens.extraction import (
     normalize_gliner2_output,
     normalize_langextract_records,
 )
-from pragmalens.models import EvidenceCandidate, NeutralReport, RunManifest
+from pragmalens.models import (
+    EvidenceCandidate,
+    Finding,
+    NeutralReport,
+    RunManifest,
+    VerificationStatus,
+    VerificationVerdict,
+)
 from pragmalens.profiles import Profile
 
 
@@ -201,6 +208,64 @@ class EvidenceNormalizerStage:
         return StageResult(stage_id=self.id, status="ok")
 
 
+class VerifyClaimsStage:
+    id = "verify_claims"
+    version = "0.1"
+    input_contract = "merged_candidates"
+    output_contract = "verification_verdicts"
+
+    def run(self, context: RunContext) -> StageResult:
+        verdicts = [
+            VerificationVerdict(
+                candidate_id=c.candidate_id,
+                status=VerificationStatus.INSUFFICIENT_EVIDENCE,
+                rationale=(
+                    "offline baseline verifier requires external evidence before support claims"
+                ),
+                evidence_ids=c.provenance,
+            )
+            for c in context.candidates
+        ]
+        context.artifacts[self.id] = {"verdicts": [v.model_dump(mode="json") for v in verdicts]}
+        context.metadata["verification"] = verdicts
+        return StageResult(stage_id=self.id, status="ok")
+
+
+class SynthesizeFindingsStage:
+    id = "synthesize_findings"
+    version = "0.1"
+    input_contract = "verification_verdicts"
+    output_contract = "findings"
+
+    def run(self, context: RunContext) -> StageResult:
+        verdicts = context.metadata.get("verification", [])
+        findings = [
+            Finding(
+                finding_id=f"finding-{idx + 1}",
+                candidate_id=v.candidate_id,
+                verdict=v.status,
+                summary=v.rationale,
+                evidence_ids=v.evidence_ids,
+            )
+            for idx, v in enumerate(verdicts)
+            if v.status in {VerificationStatus.UNSUPPORTED, VerificationStatus.VERIFIER_ERROR}
+        ]
+        context.artifacts[self.id] = {"findings": [f.model_dump(mode="json") for f in findings]}
+        context.metadata["findings"] = findings
+        return StageResult(stage_id=self.id, status="ok")
+
+
+class RenderReportsAndTracesStage:
+    id = "render_reports_and_traces"
+    version = "0.1"
+    input_contract = "findings + candidates + stage_results"
+    output_contract = "report_json + report_md + run_manifest + trace"
+
+    def run(self, context: RunContext) -> StageResult:
+        context.artifacts[self.id] = {"renderer": "cli_orchestrated"}
+        return StageResult(stage_id=self.id, status="ok")
+
+
 class PipelineRunner:
     def __init__(self, stages: list[PipelineStage]) -> None:
         self.stages = stages
@@ -221,6 +286,20 @@ def default_pr04_stages() -> list[PipelineStage]:
         LangExtractCapturedStage(),
         GLiNER2CapturedStage(),
         EvidenceNormalizerStage(),
+    ]
+
+
+def default_v01_stages() -> list[PipelineStage]:
+    return [
+        NormalizeDocumentStage(),
+        SegmentAndIndexSpansStage(),
+        SpacySubstrateStage(),
+        LangExtractCapturedStage(),
+        GLiNER2CapturedStage(),
+        EvidenceNormalizerStage(),
+        VerifyClaimsStage(),
+        SynthesizeFindingsStage(),
+        RenderReportsAndTracesStage(),
     ]
 
 
@@ -247,6 +326,9 @@ def validate_stage_graph(stages: list[PipelineStage]) -> None:
         "langextract_discourse",
         "gliner2_candidates",
         "evidence_normalizer",
+        "verify_claims",
+        "synthesize_findings",
+        "render_reports_and_traces",
     ]
     actual = [s.id for s in stages]
     if actual != expected:
@@ -257,9 +339,11 @@ def build_report_and_manifest(
     context: RunContext, input_path: str, report_path: str, stage_results: list[StageResult]
 ) -> tuple[NeutralReport, RunManifest]:
     report = NeutralReport(
+        run_id=f"run-{context.document_id}",
         document_id=context.document_id,
-        findings=[],
+        findings=context.metadata.get("findings", []),
         candidates=context.candidates,
+        verification=context.metadata.get("verification", []),
         warnings=context.warnings,
     )
     manifest = RunManifest(
@@ -275,6 +359,11 @@ def build_report_and_manifest(
         },
         stages_requested=[r.stage_id for r in stage_results],
         stage_health={r.stage_id: r.status for r in stage_results},
+        artifacts={
+            "report_json": report_path,
+            "run_manifest_json": str(Path(report_path).with_name("run_manifest.json")),
+            "trace_dir": "trace",
+        },
     )
     return report, manifest
 
@@ -291,6 +380,9 @@ def write_traces(trace_dir: Path, context: RunContext, stage_results: list[Stage
     dump("langextract_candidates.json", context.artifacts.get("langextract_discourse", {}))
     dump("gliner2_candidates.json", context.artifacts.get("gliner2_candidates", {}))
     dump("evidence_normalization.json", context.artifacts.get("evidence_normalizer", {}))
+    dump("verification.json", context.artifacts.get("verify_claims", {}))
+    dump("findings.json", context.artifacts.get("synthesize_findings", {}))
+    dump("report_rendering.json", context.artifacts.get("render_reports_and_traces", {}))
     dump(
         "quarantined_candidates.json",
         [c.model_dump(mode="json") for c in context.quarantined_candidates],

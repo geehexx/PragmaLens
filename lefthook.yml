@@ -2,10 +2,10 @@ pre-commit:
   parallel: true
   commands:
     ruff:
-      run: uv run ruff check --fix .
+      run: uv run ruff check .
     format:
-      run: uv run ruff format .
+      run: uv run ruff format --check .
     mypy:
-      run: uv run mypy pragmalens tests
+      run: uv run mypy src/pragmalens tests
     pytest:
       run: uv run pytest -q -m "not live_smoke"

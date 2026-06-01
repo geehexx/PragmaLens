@@ -8,14 +8,21 @@ from pragmalens.stages import (
     PipelineRunner,
     RunContext,
     build_report_and_manifest,
-    default_pr04_stages,
+    default_v01_stages,
     validate_stage_graph,
     write_traces,
 )
 
 
 def normalize_document(text: str, document_id: str) -> NeutralReport:
-    return NeutralReport(document_id=document_id, findings=[], candidates=[], warnings=[])
+    return NeutralReport(
+        run_id=f"run-{document_id}",
+        document_id=document_id,
+        findings=[],
+        candidates=[],
+        verification=[],
+        warnings=[],
+    )
 
 
 def build_manifest(input_path: str, report_path: str, document_id: str) -> RunManifest:
@@ -24,6 +31,7 @@ def build_manifest(input_path: str, report_path: str, document_id: str) -> RunMa
         document_id=document_id,
         input_path=input_path,
         report_path=report_path,
+        artifacts={"report_json": report_path},
     )
 
 
@@ -48,7 +56,7 @@ def run_pipeline(
         profile_name=profile_name,
         profile=profile,
     )
-    stages = default_pr04_stages()
+    stages = default_v01_stages()
     validate_stage_graph(stages)
     runner = PipelineRunner(stages)
     results = runner.run(context)

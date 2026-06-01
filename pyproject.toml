@@ -21,10 +21,16 @@ dependencies = [
   "sentence-transformers>=5.0.0",
 ]
 
+[project.optional-dependencies]
+models = [
+  "torch>=2.0",
+]
+
 [dependency-groups]
 dev = [
   "pytest>=8.0",
   "pytest-cov>=5.0",
+  "build>=1.2",
   "ruff>=0.6.0",
   "mypy>=1.11.0",
   "lefthook>=1.8.0",
@@ -43,7 +49,7 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["pragmalens", "tests"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
@@ -71,3 +77,14 @@ check_untyped_defs = false
 
 [tool.uv]
 default-groups = ["dev"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pragmalens"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/pragmalens",
+  "tests",
+  "README.md",
+  "pyproject.toml",
+]

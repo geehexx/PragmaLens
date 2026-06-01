@@ -1,6 +1,6 @@
-# PragmaLens v0.1 (PR-01..PR-04 Bootstrap)
+# PragmaLens v0.1
 
-PragmaLens is a Python natural-language evidence and discourse audit engine bootstrap, aligned to the v5 implementation package.
+PragmaLens is a Python natural-language evidence and discourse audit engine, aligned to the v5 implementation package. Current code is a v0.1 scaffold with offline fixture lanes and a conservative verifier contract.
 
 ## v0.1 Scope Constraints
 
@@ -18,6 +18,9 @@ PragmaLens is a Python natural-language evidence and discourse audit engine boot
 - `langextract_discourse` (captured fixture mode for offline CI)
 - `gliner2_candidates` (captured fixture mode for offline CI)
 - `evidence_normalizer`
+- `verify_claims` (offline baseline verdict contract)
+- `synthesize_findings`
+- `render_reports_and_traces`
 
 ## Quickstart
 
@@ -26,13 +29,13 @@ uv venv -p python3.12 .venv
 source .venv/bin/activate
 uv sync
 uv run pragmalens schema export --out schemas/pragmalens_report.schema.json --model report
-uv run pragmalens run --input /path/to/input.md --report-out out/report.json --manifest-out out/manifest.json
+uv run pragmalens run --input /path/to/input.md --report-out out/report.json --report-md-out out/report.md --manifest-out out/run_manifest.json
 ```
 
 ## CLI
 
-- `pragmalens schema export --out <path> --model report|manifest|span_ref`
-- `pragmalens run --input <markdown_or_txt> --report-out <path> --manifest-out <path> [--trace-dir trace] [--profile default]`
+- `pragmalens schema export --out <path> --model report|manifest|profile|span_ref|verification_verdict`
+- `pragmalens run --input <markdown_or_txt> --report-out <path> [--report-md-out <path>] --manifest-out <path> [--trace-dir trace] [--profile default]`
 
 ## Quality Gates
 
@@ -41,7 +44,7 @@ uv lock --check
 uv sync --frozen
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy pragmalens tests
+uv run mypy src/pragmalens tests
 uv run pytest -q -m "not live_smoke"
 ```
 

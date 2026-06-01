@@ -1,0 +1,45 @@
+{
+  "models": {
+    "manifest": {
+      "required_fields": [
+        "run_id",
+        "document_id",
+        "input_path",
+        "report_path",
+        "profile_name",
+        "stages_requested",
+        "stage_health",
+        "artifacts"
+      ]
+    },
+    "profile": {
+      "required_fields": [
+        "name",
+        "langextract_fixture",
+        "gliner2_fixture",
+        "label_map"
+      ]
+    },
+    "report": {
+      "required_fields": [
+        "run_id",
+        "report_version",
+        "generated_at",
+        "document_id",
+        "source_format",
+        "findings",
+        "candidates",
+        "verification",
+        "warnings"
+      ]
+    },
+    "verification_verdict": {
+      "required_fields": [
+        "candidate_id",
+        "status",
+        "rationale",
+        "evidence_ids"
+      ]
+    }
+  }
+}

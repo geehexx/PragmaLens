@@ -32,13 +32,12 @@ coverage.xml
 out/
 trace/
 visualization/
-/tmp/
 
-# Local reports and agent artifacts
+# Local reports and generated agent artifacts
 local_validation_report.md
 *.local.json
-.agents/
-docs/superpowers/
+.local_state/
+repomix-output*.*
 
 # Secrets and env
 .env

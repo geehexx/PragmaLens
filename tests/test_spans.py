@@ -1,6 +1,7 @@
 import pytest
-from pragmalens.models import SpanRef
 from pydantic import ValidationError
+
+from pragmalens.models import SpanRef
 
 
 def test_valid_span_roundtrip() -> None:
