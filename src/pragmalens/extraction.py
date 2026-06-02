@@ -1,10 +1,30 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from pragmalens.models import CandidateStatus, EvidenceCandidate, SpanRef
+
+
+@dataclass
+class GLiNER2NormalizationResult:
+    """Structured normalization result for captured GLiNER2 entities."""
+
+    valid: list[EvidenceCandidate]
+    quarantined: list[EvidenceCandidate]
+
+
+@dataclass
+class CandidateNormalizationResult:
+    """Structured merge/quarantine result for evidence normalization."""
+
+    candidates: list[EvidenceCandidate]
+    quarantined: list[EvidenceCandidate]
+    duplicates: list[EvidenceCandidate]
+    conflicts: list[dict[str, Any]]
+    stats: dict[str, int]
 
 
 def load_json(path: str | Path) -> Any:
@@ -140,7 +160,26 @@ def normalize_gliner2_output(
     label_map: dict[str, str] | None = None,
 ) -> list[EvidenceCandidate]:
     """Normalize captured GLiNER2 output into product evidence candidates."""
+    return normalize_gliner2_output_with_quarantine(
+        payload,
+        text,
+        document_id=document_id,
+        source=source,
+        label_map=label_map,
+    ).valid
+
+
+def normalize_gliner2_output_with_quarantine(
+    payload: dict[str, Any],
+    text: str,
+    *,
+    document_id: str = "doc",
+    source: str = "gliner2",
+    label_map: dict[str, str] | None = None,
+) -> GLiNER2NormalizationResult:
+    """Normalize captured GLiNER2 output and quarantine malformed entities."""
     candidates: list[EvidenceCandidate] = []
+    quarantined: list[EvidenceCandidate] = []
     entities = payload.get("entities", [])
     relations = payload.get("relations", [])
     mapping = label_map or {}
@@ -149,6 +188,18 @@ def normalize_gliner2_output(
         start = int(ent["start_char"])
         end = int(ent["end_char"])
         if start < 0 or end <= start or end > len(text):
+            quarantined.append(
+                EvidenceCandidate(
+                    candidate_id=f"gl-q-{idx}",
+                    label=ent.get("label", "unknown"),
+                    kind=ent.get("kind", "claim"),
+                    status=CandidateStatus.QUARANTINED,
+                    span=_quarantine_span(document_id),
+                    provenance=[source],
+                    warnings=["invalid_char_interval"],
+                    attributes={"raw": ent},
+                )
+            )
             continue
         raw_label = ent.get("label", "unknown")
         mapped_label = mapping.get(raw_label, raw_label)
@@ -172,14 +223,23 @@ def normalize_gliner2_output(
                 attributes={"raw": ent, "raw_label": raw_label},
             )
         )
-    return candidates
+    return GLiNER2NormalizationResult(valid=candidates, quarantined=quarantined)
 
 
 def merge_and_dedupe_candidates(candidates: list[EvidenceCandidate]) -> list[EvidenceCandidate]:
     """Merge duplicate candidates while preserving provenance and conflict warnings."""
+    return normalize_candidate_set(candidates).candidates
+
+
+def normalize_candidate_set(
+    candidates: list[EvidenceCandidate],
+    quarantined: list[EvidenceCandidate] | None = None,
+) -> CandidateNormalizationResult:
+    """Return merged candidates plus duplicate/conflict/quarantine trace details."""
     merged: dict[tuple[str, int, int, str, str], EvidenceCandidate] = {}
     span_labels: dict[tuple[str, int, int], set[str]] = {}
     span_kinds: dict[tuple[str, int, int], set[str]] = {}
+    duplicate_candidates: list[EvidenceCandidate] = []
 
     for cand in candidates:
         span_key = (cand.span.document_id, cand.span.start_char, cand.span.end_char)
@@ -194,10 +254,13 @@ def merge_and_dedupe_candidates(candidates: list[EvidenceCandidate]) -> list[Evi
             cand.kind,
         )
         if key not in merged:
+            _ensure_evidence_refs(cand)
             merged[key] = cand
             continue
 
         existing = merged[key]
+        _ensure_evidence_refs(existing)
+        _ensure_evidence_refs(cand)
         existing.provenance = sorted(set(existing.provenance + cand.provenance))
         existing.warnings = sorted(set(existing.warnings + cand.warnings))
         relation_keys = {
@@ -205,8 +268,18 @@ def merge_and_dedupe_candidates(candidates: list[EvidenceCandidate]) -> list[Evi
         }
         merged_relations = sorted(relation_keys)
         existing.relations = [json.loads(relation) for relation in merged_relations]
+        existing.attributes["evidence_refs"] = sorted(
+            set(existing.attributes["evidence_refs"] + cand.attributes["evidence_refs"])
+        )
+        duplicate = cand.model_copy(deep=True)
+        duplicate.status = CandidateStatus.DUPLICATE
+        duplicate.warnings = sorted(set([*duplicate.warnings, "absorbed_duplicate"]))
+        duplicate.attributes["duplicate_of"] = existing.candidate_id
+        duplicate.attributes["evidence_refs"] = list(cand.attributes["evidence_refs"])
+        duplicate_candidates.append(duplicate)
 
     result = list(merged.values())
+    conflicts: list[dict[str, Any]] = []
     for cand in result:
         span_key = (cand.span.document_id, cand.span.start_char, cand.span.end_char)
         labels = sorted(span_labels.get(span_key, set()))
@@ -218,4 +291,33 @@ def merge_and_dedupe_candidates(candidates: list[EvidenceCandidate]) -> list[Evi
             cand.warnings.append("kind_conflict")
             cand.attributes["conflicting_kinds"] = kinds
         cand.attributes["merged_provenance"] = list(cand.provenance)
-    return result
+        if "label_conflict" in cand.warnings or "kind_conflict" in cand.warnings:
+            conflicts.append(
+                {
+                    "candidate_id": cand.candidate_id,
+                    "warnings": list(cand.warnings),
+                    "conflicting_labels": cand.attributes.get("conflicting_labels", []),
+                    "conflicting_kinds": cand.attributes.get("conflicting_kinds", []),
+                }
+            )
+
+    quarantined_candidates = list(quarantined or [])
+    return CandidateNormalizationResult(
+        candidates=result,
+        quarantined=quarantined_candidates,
+        duplicates=duplicate_candidates,
+        conflicts=conflicts,
+        stats={
+            "input_candidates": len(candidates),
+            "valid_candidates": len(result),
+            "quarantined_candidates": len(quarantined_candidates),
+            "duplicate_candidates": len(duplicate_candidates),
+            "conflict_count": len(conflicts),
+        },
+    )
+
+
+def _ensure_evidence_refs(candidate: EvidenceCandidate) -> None:
+    """Populate a canonical deduped evidence-ref list in candidate attributes."""
+    evidence_refs = candidate.attributes.get("evidence_refs", candidate.provenance)
+    candidate.attributes["evidence_refs"] = sorted(set(str(ref) for ref in evidence_refs))

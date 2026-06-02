@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 from typing import Any
 
 from pragmalens.extraction import (
     merge_and_dedupe_candidates,
+    normalize_candidate_set,
     normalize_gliner2_output,
     normalize_langextract_records,
 )
@@ -68,6 +70,31 @@ def test_merge_dedupe_preserves_provenance() -> None:
     assert merged[0].attributes["merged_provenance"] == ["gliner2", "langextract"]
 
 
+def test_normalization_tracks_duplicate_candidates_and_dedupes_evidence_refs() -> None:
+    text = "When AI acts"
+    records = [
+        {
+            "char_interval": [0, 4],
+            "extraction_text": "When",
+            "label": "condition",
+            "kind": "condition",
+        }
+    ]
+    valid, _, _ = normalize_langextract_records(records, text)
+    valid[0].attributes["evidence_refs"] = ["ref-1", "ref-1", "ref-2"]
+    dup = valid[0].model_copy(deep=True)
+    dup.provenance = ["gliner2"]
+    dup.attributes["evidence_refs"] = ["ref-2", "ref-3"]
+
+    normalization = normalize_candidate_set([valid[0], dup])
+
+    assert len(normalization.candidates) == 1
+    assert len(normalization.duplicates) == 1
+    assert normalization.duplicates[0].status == "duplicate"
+    assert normalization.duplicates[0].attributes["duplicate_of"] == valid[0].candidate_id
+    assert normalization.candidates[0].attributes["evidence_refs"] == ["ref-1", "ref-2", "ref-3"]
+
+
 def test_merge_dedupe_surfaces_label_conflicts_and_dedupes_relations() -> None:
     text = "Alice signs"
     payload = {
@@ -104,3 +131,16 @@ def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
     assert (tmp_path / "trace" / "langextract_candidates.json").exists()
     assert (tmp_path / "trace" / "gliner2_candidates.json").exists()
     assert (tmp_path / "trace" / "evidence_normalization.json").exists()
+    normalization_payload = json.loads(
+        (tmp_path / "trace" / "evidence_normalization.json").read_text(encoding="utf-8")
+    )
+    assert sorted(normalization_payload) == [
+        "candidates",
+        "conflicts",
+        "duplicates",
+        "quarantined",
+        "stats",
+    ]
+    assert normalization_payload["stats"]["input_candidates"] == 3
+    assert normalization_payload["stats"]["valid_candidates"] == 3
+    assert normalization_payload["stats"]["quarantined_candidates"] == 1

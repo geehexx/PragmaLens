@@ -11,8 +11,8 @@ import spacy
 from pragmalens.extraction import (
     load_json,
     load_jsonl,
-    merge_and_dedupe_candidates,
-    normalize_gliner2_output,
+    normalize_candidate_set,
+    normalize_gliner2_output_with_quarantine,
     normalize_langextract_records,
 )
 from pragmalens.models import (
@@ -208,14 +208,18 @@ class GLiNER2CapturedStage:
         """Normalize captured GLiNER2 entities for offline pipeline runs."""
         assert context.profile is not None
         payload = load_json(context.profile.gliner2_fixture)
-        candidates = normalize_gliner2_output(
+        normalized = normalize_gliner2_output_with_quarantine(
             payload,
             context.text,
             document_id=context.document_id,
             label_map=context.profile.label_map,
         )
-        context.candidates.extend(candidates)
-        context.artifacts[self.id] = {"candidates": [c.model_dump(mode="json") for c in candidates]}
+        context.candidates.extend(normalized.valid)
+        context.quarantined_candidates.extend(normalized.quarantined)
+        context.artifacts[self.id] = {
+            "candidates": [c.model_dump(mode="json") for c in normalized.valid],
+            "quarantined": [c.model_dump(mode="json") for c in normalized.quarantined],
+        }
         return StageResult(stage_id=self.id, status="ok")
 
 
@@ -229,25 +233,23 @@ class EvidenceNormalizerStage:
 
     def run(self, context: RunContext) -> StageResult:
         """Deduplicate and normalize evidence candidates collected so far."""
-        merged = merge_and_dedupe_candidates(context.candidates)
-        context.candidates = merged
-        conflicting = [
-            {
-                "candidate_id": candidate.candidate_id,
-                "warnings": candidate.warnings,
-                "conflicting_labels": candidate.attributes.get("conflicting_labels", []),
-                "conflicting_kinds": candidate.attributes.get("conflicting_kinds", []),
-            }
-            for candidate in merged
-            if "label_conflict" in candidate.warnings or "kind_conflict" in candidate.warnings
-        ]
+        normalization = normalize_candidate_set(
+            context.candidates, quarantined=context.quarantined_candidates
+        )
+        context.candidates = normalization.candidates
         context.artifacts[self.id] = {
-            "candidates": [c.model_dump(mode="json") for c in merged],
-            "conflicts": conflicting,
+            "candidates": [c.model_dump(mode="json") for c in normalization.candidates],
+            "quarantined": [c.model_dump(mode="json") for c in normalization.quarantined],
+            "duplicates": [c.model_dump(mode="json") for c in normalization.duplicates],
+            "conflicts": normalization.conflicts,
+            "stats": normalization.stats,
         }
-        if conflicting:
+        if normalization.conflicts:
             context.warnings.extend(
-                [f"normalization_conflict:{item['candidate_id']}" for item in conflicting]
+                [
+                    f"normalization_conflict:{item['candidate_id']}"
+                    for item in normalization.conflicts
+                ]
             )
         return StageResult(stage_id=self.id, status="ok")
 

@@ -7,8 +7,8 @@ from typing import Any
 from pragmalens.extraction import (
     load_json,
     load_jsonl,
-    merge_and_dedupe_candidates,
-    normalize_gliner2_output,
+    normalize_candidate_set,
+    normalize_gliner2_output_with_quarantine,
     normalize_langextract_records,
 )
 from pragmalens.models import EvidenceCandidate
@@ -26,8 +26,11 @@ def run_captured_extraction_pipeline(
     gl_payload = load_json(gliner2_json)
 
     lx_valid, lx_quarantined, lx_meta = normalize_langextract_records(lx_records, text)
-    gl_candidates = normalize_gliner2_output(gl_payload, text)
-    merged = merge_and_dedupe_candidates(lx_valid + gl_candidates)
+    gl_normalized = normalize_gliner2_output_with_quarantine(gl_payload, text)
+    normalization = normalize_candidate_set(
+        lx_valid + gl_normalized.valid,
+        quarantined=lx_quarantined + gl_normalized.quarantined,
+    )
 
     trace = Path(trace_dir)
     trace.mkdir(parents=True, exist_ok=True)
@@ -45,17 +48,33 @@ def run_captured_extraction_pipeline(
         Path(gliner2_json).read_text(encoding="utf-8"), encoding="utf-8"
     )
     (trace / "gliner2_candidates.json").write_text(
-        json.dumps([c.model_dump(mode="json") for c in gl_candidates], indent=2) + "\n",
+        json.dumps([c.model_dump(mode="json") for c in gl_normalized.valid], indent=2) + "\n",
+        encoding="utf-8",
+    )
+    (trace / "gliner2_quarantined.json").write_text(
+        json.dumps([c.model_dump(mode="json") for c in gl_normalized.quarantined], indent=2) + "\n",
         encoding="utf-8",
     )
     (trace / "evidence_normalization.json").write_text(
-        json.dumps([c.model_dump(mode="json") for c in merged], indent=2) + "\n", encoding="utf-8"
+        json.dumps(
+            {
+                "candidates": [c.model_dump(mode="json") for c in normalization.candidates],
+                "quarantined": [c.model_dump(mode="json") for c in normalization.quarantined],
+                "duplicates": [c.model_dump(mode="json") for c in normalization.duplicates],
+                "conflicts": normalization.conflicts,
+                "stats": normalization.stats,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
     )
 
     return {
         "langextract_meta": lx_meta,
-        "valid_candidates": merged,
-        "quarantined_candidates": lx_quarantined,
+        "valid_candidates": normalization.candidates,
+        "quarantined_candidates": normalization.quarantined,
+        "duplicate_candidates": normalization.duplicates,
     }
 
 
