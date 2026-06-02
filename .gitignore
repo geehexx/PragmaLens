@@ -22,6 +22,7 @@ coverage.xml
 .nox/
 .tox/
 *.log
+.testmondata
 
 # IDE/editor
 .vscode/
@@ -38,6 +39,12 @@ local_validation_report.md
 *.local.json
 .local_state/
 repomix-output*.*
+.codex
+.codex/
+.agents
+.agents/
+AGENTS.md
+RTK.md
 
 # Secrets and env
 .env
