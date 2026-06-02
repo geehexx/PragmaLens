@@ -13,6 +13,9 @@ from gliner2 import GLiNER2
 from minicheck.minicheck import MiniCheck  # type: ignore[import-untyped]
 from spacy.language import Language
 
+from pragmalens.models import CandidateStatus, EvidenceCandidate, SpanRef, VerificationStatus
+from pragmalens.verifier import build_verifier_adapter
+
 
 def _require_live_smoke_enabled() -> None:
     """Require an explicit opt-in before touching live runtimes or remote services."""
@@ -188,3 +191,57 @@ def test_minicheck_live_smoke_scores_supported_vs_unsupported_claims() -> None:
     assert pred_label == [1, 0]
     assert raw_prob[0] > 0.5
     assert raw_prob[1] < 0.5
+
+
+@pytest.mark.live_smoke
+@pytest.mark.slow
+def test_crossencoder_live_smoke_maps_supported_and_unsupported_claims() -> None:
+    _require_live_smoke_enabled()
+
+    verifier = build_verifier_adapter(
+        "crossencoder_nli",
+        model_name=os.environ.get(
+            "PRAGMALENS_CROSSENCODER_MODEL",
+            "cross-encoder/nli-deberta-v3-base",
+        ),
+    )
+    candidates = [
+        EvidenceCandidate(
+            candidate_id="candidate-supported",
+            label="claim",
+            kind="claim",
+            status=CandidateStatus.VALID,
+            span=SpanRef(
+                document_id="doc",
+                start_char=0,
+                end_char=20,
+                text="A man eats something",
+            ),
+            provenance=["fixture"],
+            evidence_refs=["ref-supported"],
+        ),
+        EvidenceCandidate(
+            candidate_id="candidate-unsupported",
+            label="claim",
+            kind="claim",
+            status=CandidateStatus.VALID,
+            span=SpanRef(
+                document_id="doc",
+                start_char=0,
+                end_char=36,
+                text="A man is driving down a lonely road.",
+            ),
+            provenance=["fixture"],
+            evidence_refs=["ref-unsupported"],
+        ),
+    ]
+    verdicts = verifier.verify(
+        candidates,
+        document_id="doc",
+        text="A man is eating pizza",
+    )
+
+    assert verdicts[0].status is VerificationStatus.SUPPORTED
+    assert verdicts[1].status is VerificationStatus.UNSUPPORTED
+    assert verdicts[0].evidence_ids == ["ref-supported"]
+    assert verdicts[1].evidence_ids == ["ref-unsupported"]

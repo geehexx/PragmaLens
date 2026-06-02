@@ -8,7 +8,14 @@ from pragmalens.models import (
     VerificationVerdict,
 )
 from pragmalens.stages import RunContext, StageResult, VerifyClaimsStage
-from pragmalens.verifier import CrossEncoderNliVerifier, MiniCheckVerifier
+from pragmalens.verifier import (
+    CrossEncoderNliVerifier,
+    MiniCheckVerifier,
+    OfflineBaselineVerifier,
+    VerifierBackend,
+    build_verifier_adapter,
+    build_verifier_from_env,
+)
 
 
 @pytest.mark.parametrize("status", list(VerificationStatus))
@@ -421,3 +428,54 @@ def test_crossencoder_verifier_rejects_label_mapping_mismatch() -> None:
         CrossEncoderNliVerifier(FakeCrossEncoderWideRowModel()).verify(
             [candidate], document_id="doc", text="Need evidence."
         )
+
+
+def test_build_verifier_adapter_returns_offline_baseline() -> None:
+    verifier = build_verifier_adapter(VerifierBackend.OFFLINE)
+
+    assert isinstance(verifier, OfflineBaselineVerifier)
+
+
+def test_build_verifier_from_env_defaults_to_offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PRAGMALENS_VERIFIER", raising=False)
+
+    verifier = build_verifier_from_env()
+
+    assert isinstance(verifier, OfflineBaselineVerifier)
+
+
+def test_build_verifier_from_env_uses_minicheck_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    marker = object()
+
+    def fake_builder(*, model_name: str, cache_dir: str) -> object:
+        assert model_name == "mini-model"
+        assert cache_dir == "/tmp/minicheck"
+        return marker
+
+    monkeypatch.setattr("pragmalens.verifier._build_minicheck_from_runtime", fake_builder)
+    monkeypatch.setenv("PRAGMALENS_VERIFIER", "minicheck")
+    monkeypatch.setenv("PRAGMALENS_MINICHECK_MODEL", "mini-model")
+    monkeypatch.setenv("PRAGMALENS_MINICHECK_CACHE_DIR", "/tmp/minicheck")
+
+    verifier = build_verifier_from_env()
+
+    assert verifier is marker
+
+
+def test_build_verifier_from_env_uses_crossencoder_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = object()
+
+    def fake_builder(*, model_name: str, label_mapping: tuple[str, ...]) -> object:
+        assert model_name == "ce-model"
+        assert label_mapping == ("contradiction", "entailment", "neutral")
+        return marker
+
+    monkeypatch.setattr("pragmalens.verifier._build_crossencoder_from_runtime", fake_builder)
+    monkeypatch.setenv("PRAGMALENS_VERIFIER", "crossencoder_nli")
+    monkeypatch.setenv("PRAGMALENS_CROSSENCODER_MODEL", "ce-model")
+
+    verifier = build_verifier_from_env()
+
+    assert verifier is marker

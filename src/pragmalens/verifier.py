@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
+from enum import StrEnum
 from typing import Any, Protocol
 
 from pragmalens.models import EvidenceCandidate, VerificationStatus, VerificationVerdict
+
+
+class VerifierBackend(StrEnum):
+    """Supported verifier runtime selections."""
+
+    OFFLINE = "offline"
+    MINICHECK = "minicheck"
+    CROSSENCODER_NLI = "crossencoder_nli"
 
 
 class VerifierAdapter(Protocol):
@@ -140,7 +150,7 @@ class CrossEncoderNliVerifier:
 
     def _resolve_nli_label(self, row: Sequence[float]) -> str:
         """Resolve the winning label for one NLI score row."""
-        if not row:
+        if len(row) == 0:
             raise ValueError("CrossEncoder model returned an empty score row")
         max_index = max(range(len(row)), key=lambda index: row[index])
         try:
@@ -174,3 +184,66 @@ def _status_for_nli_label(label: str) -> VerificationStatus:
     if normalized == "neutral":
         return VerificationStatus.INSUFFICIENT_EVIDENCE
     raise ValueError(f"Unsupported NLI label: {label!r}")
+
+
+def build_verifier_adapter(
+    backend: VerifierBackend | str,
+    *,
+    model_name: str | None = None,
+    cache_dir: str | None = None,
+    label_mapping: Sequence[str] | None = None,
+) -> VerifierAdapter:
+    """Build a verifier adapter from a backend selector and optional runtime config."""
+    selected = VerifierBackend(backend)
+    if selected is VerifierBackend.OFFLINE:
+        return OfflineBaselineVerifier()
+    if selected is VerifierBackend.MINICHECK:
+        return _build_minicheck_from_runtime(
+            model_name=model_name or "roberta-large",
+            cache_dir=cache_dir or ".local_state/minicheck-cache",
+        )
+    if selected is VerifierBackend.CROSSENCODER_NLI:
+        return _build_crossencoder_from_runtime(
+            model_name=model_name or "cross-encoder/nli-deberta-v3-base",
+            label_mapping=label_mapping or ("contradiction", "entailment", "neutral"),
+        )
+    raise ValueError(f"Unsupported verifier backend: {backend!r}")
+
+
+def build_verifier_from_env() -> VerifierAdapter:
+    """Build a verifier adapter from environment configuration."""
+    backend = os.environ.get("PRAGMALENS_VERIFIER", VerifierBackend.OFFLINE)
+    if backend == VerifierBackend.MINICHECK:
+        return build_verifier_adapter(
+            backend,
+            model_name=os.environ.get("PRAGMALENS_MINICHECK_MODEL", "roberta-large"),
+            cache_dir=os.environ.get(
+                "PRAGMALENS_MINICHECK_CACHE_DIR",
+                ".local_state/minicheck-cache",
+            ),
+        )
+    if backend == VerifierBackend.CROSSENCODER_NLI:
+        return build_verifier_adapter(
+            backend,
+            model_name=os.environ.get(
+                "PRAGMALENS_CROSSENCODER_MODEL",
+                "cross-encoder/nli-deberta-v3-base",
+            ),
+        )
+    return build_verifier_adapter(VerifierBackend.OFFLINE)
+
+
+def _build_minicheck_from_runtime(*, model_name: str, cache_dir: str) -> VerifierAdapter:
+    """Instantiate a MiniCheck-backed verifier from real runtime dependencies."""
+    from minicheck.minicheck import MiniCheck  # type: ignore[import-untyped]
+
+    return MiniCheckVerifier(MiniCheck(model_name=model_name, cache_dir=cache_dir))
+
+
+def _build_crossencoder_from_runtime(
+    *, model_name: str, label_mapping: Sequence[str]
+) -> VerifierAdapter:
+    """Instantiate a CrossEncoder-backed verifier from real runtime dependencies."""
+    from sentence_transformers import CrossEncoder
+
+    return CrossEncoderNliVerifier(CrossEncoder(model_name), label_mapping=label_mapping)

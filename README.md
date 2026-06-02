@@ -116,7 +116,9 @@ uv pip install "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main"
   - `PRAGMALENS_LANGEXTRACT_PROVIDER=ollama|gemini|auto`
   - `PRAGMALENS_LANGEXTRACT_MODEL`
   - `PRAGMALENS_OLLAMA_URL`
+  - `PRAGMALENS_VERIFIER=offline|minicheck|crossencoder_nli`
   - `PRAGMALENS_MINICHECK_MODEL`
   - `PRAGMALENS_MINICHECK_CACHE_DIR`
+  - `PRAGMALENS_CROSSENCODER_MODEL`
 
 Live/model tests remain outside default CI. Default CI stays offline and deterministic.
