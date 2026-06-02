@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+from pydantic import ValidationError
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+CONTRACT = ROOT / "schemas" / "v5" / "contract_requirements.json"
+
+
+def fail(msg: str) -> None:
+    print(f"FAIL: {msg}")
+    raise SystemExit(1)
+
+
+def main() -> None:
+    if not CONTRACT.exists():
+        fail(f"missing v5 schema contract: {CONTRACT}")
+
+    from pragmalens.models import NeutralReport, RunManifest, VerificationVerdict
+    from pragmalens.profiles import ProfileModel
+
+    contract = json.loads(CONTRACT.read_text(encoding="utf-8"))["models"]
+    models = {
+        "report": NeutralReport,
+        "manifest": RunManifest,
+        "profile": ProfileModel,
+        "verification_verdict": VerificationVerdict,
+    }
+    for name, model in models.items():
+        fields = set(model.model_json_schema().get("properties", {}))
+        required = set(contract[name]["required_fields"])
+        missing_fields = sorted(required - fields)
+        if missing_fields:
+            fail(f"{name} schema missing required fields: {missing_fields}")
+
+    samples = {
+        "report": {
+            "run_id": "run-doc",
+            "document_id": "doc",
+            "findings": [],
+            "candidates": [],
+            "verification": [],
+            "warnings": [],
+        },
+        "manifest": {
+            "run_id": "run-doc",
+            "document_id": "doc",
+            "input_path": "doc.md",
+            "report_path": "report.json",
+            "stages_requested": ["normalize_document"],
+            "stage_health": {"normalize_document": "ok"},
+            "artifacts": {"report_json": "report.json"},
+        },
+        "profile": {
+            "name": "default",
+            "langextract_fixture": "tests/fixtures/langextract_sample.jsonl",
+            "gliner2_fixture": "tests/fixtures/gliner2_sample.json",
+            "label_map": {},
+        },
+        "verification_verdict": {
+            "candidate_id": "candidate-1",
+            "status": "insufficient_evidence",
+            "rationale": "fixture",
+            "evidence_ids": [],
+        },
+    }
+    for name, sample in samples.items():
+        try:
+            models[name].model_validate(sample)
+        except ValidationError as exc:
+            fail(f"{name} sample failed validation: {exc}")
+
+    print("PASS: generated Pydantic schemas satisfy the v5 required-field contract")
+    print("PASS: report/manifest/profile/verdict samples validate")
+
+
+if __name__ == "__main__":
+    main()

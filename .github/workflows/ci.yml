@@ -6,7 +6,22 @@ on:
   pull_request:
 
 jobs:
-  test-lint-type:
+  repo-layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v8
+        with:
+          python-version: "3.12"
+
+      - name: Sync
+        run: uv sync --frozen
+
+      - name: Product repo layout
+        run: uv run python scripts/check_product_repo_layout.py
+
+  lint-types:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,8 +42,48 @@ jobs:
       - name: Mypy
         run: uv run mypy src/pragmalens tests
 
-      - name: Pytest (offline default)
-        run: uv run pytest -q -m "not live_smoke"
+      - name: Interrogate
+        run: uv run interrogate src/pragmalens
+
+  offline-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v8
+        with:
+          python-version: "3.12"
+
+      - name: Sync
+        run: uv sync --frozen
+
+      - name: Lock check
+        run: uv lock --check
+
+      - name: Compileall
+        run: uv run python -m compileall -q src tests
+
+      - name: Pytest with coverage
+        run: uv run coverage run -m pytest -q -m "not live_smoke"
+
+      - name: Coverage report
+        run: uv run coverage report --skip-empty
+
+      - name: Schema parity
+        run: uv run python scripts/check_schema_parity.py
+
+      - name: Stage graph
+        run: uv run python scripts/check_stage_graph.py
+
+      - name: Build wheel
+        run: uv run python -m build
+
+      - name: Import built wheel
+        run: |
+          tmpdir=$(mktemp -d)
+          python3 -m venv "$tmpdir/venv"
+          "$tmpdir/venv/bin/python" -m pip install --no-deps dist/*.whl
+          (cd "$tmpdir" && "$tmpdir/venv/bin/python" -c "import pragmalens; print(pragmalens.__file__)")
 
   secrets:
     runs-on: ubuntu-latest

@@ -42,16 +42,35 @@ uv run pragmalens run --input /path/to/input.md --report-out out/report.json --r
 ```bash
 uv lock --check
 uv sync --frozen
+uv run python scripts/check_product_repo_layout.py
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src/pragmalens tests
-uv run pytest -q -m "not live_smoke"
+uv run interrogate src/pragmalens
+uv run coverage run -m pytest -q -m "not live_smoke"
+uv run coverage report --skip-empty
+uv run python scripts/check_schema_parity.py
+uv run python scripts/check_stage_graph.py
 ```
 
 ## Hook Setup
 
 ```bash
 uv run lefthook install
+```
+
+## Local Codex Overlay
+
+Heavy Codex planning and operator-only control artifacts live outside this
+product repo. See [docs/local-codex-bootstrap.md](docs/local-codex-bootstrap.md)
+to restore the local overlay from the private sibling control repo.
+
+## Nox Sessions
+
+```bash
+uv run nox -l
+uv run nox -s lint types tests build
+uv run nox -s dev-fast
 ```
 
 ## Security Scan
