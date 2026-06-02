@@ -90,9 +90,12 @@ def test_normalization_tracks_duplicate_candidates_and_dedupes_evidence_refs() -
 
     assert len(normalization.candidates) == 1
     assert len(normalization.duplicates) == 1
+    assert len(normalization.duplicate_events) == 1
     assert normalization.duplicates[0].status == "duplicate"
     assert normalization.duplicates[0].attributes["duplicate_of"] == valid[0].candidate_id
     assert normalization.candidates[0].evidence_refs == ["ref-1", "ref-2", "ref-3"]
+    assert normalization.duplicate_events[0]["duplicate_of"] == valid[0].candidate_id
+    assert normalization.stats["duplicate_candidates_by_source"] == {"ref-2": 1, "ref-3": 1}
 
 
 def test_merge_dedupe_surfaces_label_conflicts_and_dedupes_relations() -> None:
@@ -110,12 +113,20 @@ def test_merge_dedupe_surfaces_label_conflicts_and_dedupes_relations() -> None:
     candidates = normalize_gliner2_output(payload, text)
 
     merged = merge_and_dedupe_candidates(candidates)
+    normalization = normalize_candidate_set(candidates)
 
     assert len(merged) == 2
     assert max(len(candidate.relations) for candidate in merged) == 1
     for candidate in merged:
         assert "label_conflict" in candidate.warnings
         assert candidate.attributes["conflicting_labels"] == ["agent", "owner"]
+    assert normalization.conflicts[0]["candidate_ids"] == ["gl-0", "gl-1"]
+    assert normalization.conflicts[0]["span"] == {
+        "document_id": "doc",
+        "start_char": 0,
+        "end_char": 5,
+    }
+    assert normalization.conflicts[0]["sources"] == ["gliner2"]
 
 
 def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
@@ -137,6 +148,7 @@ def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
     assert sorted(normalization_payload) == [
         "candidates",
         "conflicts",
+        "duplicate_events",
         "duplicates",
         "quarantined",
         "stats",
@@ -144,6 +156,10 @@ def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
     assert normalization_payload["stats"]["input_candidates"] == 3
     assert normalization_payload["stats"]["valid_candidates"] == 3
     assert normalization_payload["stats"]["quarantined_candidates"] == 1
+    assert normalization_payload["stats"]["input_candidates_by_source"] == {
+        "gliner2": 2,
+        "langextract": 1,
+    }
 
 
 def test_captured_pipeline_preserves_quarantined_gliner2_trace_details(tmp_path: Path) -> None:

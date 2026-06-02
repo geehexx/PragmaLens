@@ -21,11 +21,17 @@ def main() -> None:
     if not CONTRACT.exists():
         fail(f"missing v5 schema contract: {CONTRACT}")
 
-    from pragmalens.models import NeutralReport, RunManifest, VerificationVerdict
+    from pragmalens.models import (
+        EvidenceCandidate,
+        NeutralReport,
+        RunManifest,
+        VerificationVerdict,
+    )
     from pragmalens.profiles import ProfileModel
 
     contract = json.loads(CONTRACT.read_text(encoding="utf-8"))["models"]
     models = {
+        "evidence_candidate": EvidenceCandidate,
         "report": NeutralReport,
         "manifest": RunManifest,
         "profile": ProfileModel,
@@ -39,6 +45,20 @@ def main() -> None:
             fail(f"{name} schema missing required fields: {missing_fields}")
 
     samples = {
+        "evidence_candidate": {
+            "candidate_id": "candidate-1",
+            "label": "claim",
+            "kind": "claim",
+            "status": "valid",
+            "span": {
+                "document_id": "doc",
+                "start_char": 0,
+                "end_char": 4,
+                "text": "text",
+            },
+            "provenance": ["fixture"],
+            "evidence_refs": ["fixture"],
+        },
         "report": {
             "run_id": "run-doc",
             "document_id": "doc",
@@ -76,7 +96,7 @@ def main() -> None:
             fail(f"{name} sample failed validation: {exc}")
 
     print("PASS: generated Pydantic schemas satisfy the v5 required-field contract")
-    print("PASS: report/manifest/profile/verdict samples validate")
+    print("PASS: candidate/report/manifest/profile/verdict samples validate")
 
 
 if __name__ == "__main__":

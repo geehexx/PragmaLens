@@ -76,6 +76,7 @@ on RTK being installed.
 uv run nox -l
 uv run nox -s lint types tests build
 uv run nox -s dev-fast
+uv run nox -s dev-live
 ```
 
 ## Security Scan
@@ -93,10 +94,29 @@ gitleaks git --config .gitleaks.toml
 
 - Default tests are offline and use captured fixtures for LangExtract and GLiNER2.
 - Live smoke tests are marked `live_smoke` and skipped by default.
-- MiniCheck primary target install path (live smoke only):
+- Live smoke opt-in:
 
 ```bash
-pip install "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main"
+PRAGMALENS_ENABLE_LIVE_SMOKE=1 uv run pytest -q -m live_smoke
 ```
 
-MiniCheck is not executed in default CI/offline tests.
+- Local runtime bootstrap for the current live smoke lane:
+
+```bash
+uv run python -m spacy download en_core_web_sm
+uv run python -m spacy validate
+uv pip install "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main"
+```
+
+- LangExtract live smoke defaults to a local Ollama model when available.
+  Current default: `qwen3.5:0.8b`
+- Override live runtime models with environment variables:
+  - `PRAGMALENS_SPACY_MODEL`
+  - `PRAGMALENS_GLINER2_MODEL`
+  - `PRAGMALENS_LANGEXTRACT_PROVIDER=ollama|gemini|auto`
+  - `PRAGMALENS_LANGEXTRACT_MODEL`
+  - `PRAGMALENS_OLLAMA_URL`
+  - `PRAGMALENS_MINICHECK_MODEL`
+  - `PRAGMALENS_MINICHECK_CACHE_DIR`
+
+Live/model tests remain outside default CI. Default CI stays offline and deterministic.

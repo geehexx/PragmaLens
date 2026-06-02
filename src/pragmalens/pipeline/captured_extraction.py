@@ -61,6 +61,7 @@ def run_captured_extraction_pipeline(
                 "candidates": [c.model_dump(mode="json") for c in normalization.candidates],
                 "quarantined": [c.model_dump(mode="json") for c in normalization.quarantined],
                 "duplicates": [c.model_dump(mode="json") for c in normalization.duplicates],
+                "duplicate_events": normalization.duplicate_events,
                 "conflicts": normalization.conflicts,
                 "stats": normalization.stats,
             },
