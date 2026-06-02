@@ -144,3 +144,34 @@ def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
     assert normalization_payload["stats"]["input_candidates"] == 3
     assert normalization_payload["stats"]["valid_candidates"] == 3
     assert normalization_payload["stats"]["quarantined_candidates"] == 1
+
+
+def test_captured_pipeline_preserves_quarantined_gliner2_trace_details(tmp_path: Path) -> None:
+    text = "The team will ship."
+    gliner2_path = tmp_path / "gliner2.json"
+    gliner2_path.write_text(
+        json.dumps({"entities": [{"label": "agent", "end_char": 4}]}) + "\n",
+        encoding="utf-8",
+    )
+
+    out = run_captured_extraction_pipeline(
+        text=text,
+        langextract_jsonl="tests/fixtures/langextract_sample.jsonl",
+        gliner2_json=gliner2_path,
+        trace_dir=tmp_path / "trace",
+    )
+
+    gliner2_quarantined = json.loads(
+        (tmp_path / "trace" / "gliner2_quarantined.json").read_text(encoding="utf-8")
+    )
+    normalization_payload = json.loads(
+        (tmp_path / "trace" / "evidence_normalization.json").read_text(encoding="utf-8")
+    )
+
+    assert out["quarantined_candidates"]
+    assert gliner2_quarantined[0]["warnings"] == ["missing_char_interval"]
+    assert gliner2_quarantined[0]["evidence_refs"] == ["gliner2"]
+    assert any(
+        candidate["warnings"] == ["missing_char_interval"]
+        for candidate in normalization_payload["quarantined"]
+    )

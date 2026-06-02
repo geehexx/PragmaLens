@@ -43,6 +43,33 @@ def _quarantine_span(document_id: str) -> SpanRef:
     return SpanRef(document_id=document_id, start_char=0, end_char=1, text=" ")
 
 
+def _quarantine_gliner2_entity(
+    entity: Any,
+    *,
+    idx: int,
+    document_id: str,
+    source: str,
+    warning: str,
+) -> EvidenceCandidate:
+    """Build a quarantined candidate for malformed GLiNER2 entity payloads."""
+    raw = entity if isinstance(entity, dict) else {"raw_entity": entity}
+    raw_label = raw.get("label", "unknown") if isinstance(raw, dict) else "unknown"
+    raw_kind = raw.get("kind", "claim") if isinstance(raw, dict) else "claim"
+    label = raw_label if isinstance(raw_label, str) and raw_label else "unknown"
+    kind = raw_kind if isinstance(raw_kind, str) and raw_kind else "claim"
+    return EvidenceCandidate(
+        candidate_id=f"gl-q-{idx}",
+        label=label,
+        kind=kind,
+        status=CandidateStatus.QUARANTINED,
+        span=_quarantine_span(document_id),
+        provenance=[source],
+        evidence_refs=[source],
+        warnings=[warning],
+        attributes={"raw": raw},
+    )
+
+
 def normalize_langextract_records(
     records: list[dict[str, Any]],
     text: str,
@@ -190,25 +217,65 @@ def normalize_gliner2_output_with_quarantine(
     mapping = label_map or {}
 
     for idx, ent in enumerate(entities):
-        start = int(ent["start_char"])
-        end = int(ent["end_char"])
-        if start < 0 or end <= start or end > len(text):
+        if not isinstance(ent, dict):
             quarantined.append(
-                EvidenceCandidate(
-                    candidate_id=f"gl-q-{idx}",
-                    label=ent.get("label", "unknown"),
-                    kind=ent.get("kind", "claim"),
-                    status=CandidateStatus.QUARANTINED,
-                    span=_quarantine_span(document_id),
-                    provenance=[source],
-                    evidence_refs=[source],
-                    warnings=["invalid_char_interval"],
-                    attributes={"raw": ent},
+                _quarantine_gliner2_entity(
+                    ent,
+                    idx=idx,
+                    document_id=document_id,
+                    source=source,
+                    warning="invalid_entity_payload",
                 )
             )
             continue
-        raw_label = ent.get("label", "unknown")
-        mapped_label = mapping.get(raw_label, raw_label)
+        try:
+            start = int(ent["start_char"])
+            end = int(ent["end_char"])
+        except KeyError:
+            quarantined.append(
+                _quarantine_gliner2_entity(
+                    ent,
+                    idx=idx,
+                    document_id=document_id,
+                    source=source,
+                    warning="missing_char_interval",
+                )
+            )
+            continue
+        except (TypeError, ValueError):
+            quarantined.append(
+                _quarantine_gliner2_entity(
+                    ent,
+                    idx=idx,
+                    document_id=document_id,
+                    source=source,
+                    warning="invalid_char_interval",
+                )
+            )
+            continue
+        if start < 0 or end <= start or end > len(text):
+            quarantined.append(
+                _quarantine_gliner2_entity(
+                    ent,
+                    idx=idx,
+                    document_id=document_id,
+                    source=source,
+                    warning="invalid_char_interval",
+                )
+            )
+            continue
+        raw_label_value = ent.get("label", "unknown")
+        raw_label = (
+            raw_label_value if isinstance(raw_label_value, str) and raw_label_value else "unknown"
+        )
+        mapped_label_value = mapping.get(raw_label, raw_label)
+        mapped_label = (
+            mapped_label_value
+            if isinstance(mapped_label_value, str) and mapped_label_value
+            else raw_label
+        )
+        raw_kind = ent.get("kind", "claim")
+        kind = raw_kind if isinstance(raw_kind, str) and raw_kind else "claim"
         relation_keys = {
             json.dumps(relation, sort_keys=True)
             for relation in relations
@@ -218,7 +285,7 @@ def normalize_gliner2_output_with_quarantine(
             EvidenceCandidate(
                 candidate_id=f"gl-{idx}",
                 label=mapped_label,
-                kind=ent.get("kind", "claim"),
+                kind=kind,
                 status=CandidateStatus.VALID,
                 span=SpanRef(
                     document_id=document_id, start_char=start, end_char=end, text=text[start:end]

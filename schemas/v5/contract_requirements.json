@@ -1,5 +1,16 @@
 {
   "models": {
+    "evidence_candidate": {
+      "required_fields": [
+        "candidate_id",
+        "label",
+        "kind",
+        "status",
+        "span",
+        "provenance",
+        "evidence_refs"
+      ]
+    },
     "manifest": {
       "required_fields": [
         "run_id",

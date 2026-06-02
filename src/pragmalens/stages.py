@@ -25,6 +25,7 @@ from pragmalens.models import (
     VerificationVerdict,
 )
 from pragmalens.profiles import Profile
+from pragmalens.verifier import OfflineBaselineVerifier, VerifierAdapter
 
 
 @dataclass
@@ -202,7 +203,7 @@ class GLiNER2CapturedStage:
     id = "gliner2_candidates"
     version = "0.1"
     input_contract = "normalized_text + profile"
-    output_contract = "gliner2_candidates"
+    output_contract = "gliner2_candidates + quarantined_candidates"
 
     def run(self, context: RunContext) -> StageResult:
         """Normalize captured GLiNER2 entities for offline pipeline runs."""
@@ -262,6 +263,10 @@ class VerifyClaimsStage:
     input_contract = "merged_candidates"
     output_contract = "verification_verdicts"
 
+    def __init__(self, verifier: VerifierAdapter | None = None) -> None:
+        """Use the default offline adapter unless a verifier is injected."""
+        self._verifier = verifier or OfflineBaselineVerifier()
+
     def run(self, context: RunContext) -> StageResult:
         """Populate baseline verification verdicts without live evidence lookup."""
         skipped = [
@@ -274,17 +279,17 @@ class VerifyClaimsStage:
             for candidate in context.candidates
             if candidate.status is CandidateStatus.VALID
         ]
-        verdicts = [
-            VerificationVerdict(
-                candidate_id=c.candidate_id,
-                status=VerificationStatus.INSUFFICIENT_EVIDENCE,
-                rationale=(
-                    "offline baseline verifier requires external evidence before support claims"
-                ),
-                evidence_ids=c.evidence_refs,
+        try:
+            verdicts = self._verifier.verify(
+                valid_candidates,
+                document_id=context.document_id,
+                text=context.text,
             )
-            for c in valid_candidates
-        ]
+            self._validate_verdicts(valid_candidates, verdicts)
+        except Exception as exc:
+            verdicts = self._fallback_error_verdicts(valid_candidates, error=str(exc))
+            if valid_candidates:
+                context.warnings.append("verifier_adapter_failed")
         if skipped:
             context.warnings.extend(
                 [f"verifier_skipped_non_valid:{candidate.candidate_id}" for candidate in skipped]
@@ -295,6 +300,34 @@ class VerifyClaimsStage:
         }
         context.metadata["verification"] = verdicts
         return StageResult(stage_id=self.id, status="ok")
+
+    @staticmethod
+    def _validate_verdicts(
+        candidates: list[EvidenceCandidate], verdicts: list[VerificationVerdict]
+    ) -> None:
+        """Reject adapter outputs that do not align with the requested batch."""
+        if len(verdicts) != len(candidates):
+            raise ValueError("verifier returned wrong verdict count")
+        expected_ids = [candidate.candidate_id for candidate in candidates]
+        actual_ids = [verdict.candidate_id for verdict in verdicts]
+        if actual_ids != expected_ids:
+            raise ValueError("verifier returned verdicts for unexpected candidate ids")
+
+    @staticmethod
+    def _fallback_error_verdicts(
+        candidates: list[EvidenceCandidate], *, error: str
+    ) -> list[VerificationVerdict]:
+        """Produce deterministic verifier-error verdicts after adapter failure."""
+        return [
+            VerificationVerdict(
+                candidate_id=candidate.candidate_id,
+                status=VerificationStatus.VERIFIER_ERROR,
+                rationale="verifier adapter failed; emitted fallback error verdict",
+                evidence_ids=candidate.evidence_refs,
+                error=error,
+            )
+            for candidate in candidates
+        ]
 
 
 class SynthesizeFindingsStage:

@@ -50,3 +50,23 @@ def test_gliner2_invalid_span_is_quarantined() -> None:
     assert len(normalized.quarantined) == 1
     assert normalized.quarantined[0].status == "quarantined"
     assert normalized.quarantined[0].warnings == ["invalid_char_interval"]
+
+
+@pytest.mark.parametrize(
+    ("entity", "warning"),
+    [
+        ({"label": "agent", "end_char": 8}, "missing_char_interval"),
+        ({"label": "agent", "start_char": "x", "end_char": 8}, "invalid_char_interval"),
+        ("not-a-dict", "invalid_entity_payload"),
+    ],
+)
+def test_gliner2_malformed_entities_are_quarantined(entity: object, warning: str) -> None:
+    payload = {"entities": [entity]}
+
+    normalized = normalize_gliner2_output_with_quarantine(
+        payload, "The team will ship.", document_id="doc"
+    )
+
+    assert normalized.valid == []
+    assert len(normalized.quarantined) == 1
+    assert normalized.quarantined[0].warnings == [warning]

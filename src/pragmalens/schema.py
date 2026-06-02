@@ -5,10 +5,17 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from pragmalens.models import NeutralReport, RunManifest, SpanRef, VerificationVerdict
+from pragmalens.models import (
+    EvidenceCandidate,
+    NeutralReport,
+    RunManifest,
+    SpanRef,
+    VerificationVerdict,
+)
 from pragmalens.profiles import ProfileModel
 
 MODEL_MAP: dict[str, type[BaseModel]] = {
+    "evidence_candidate": EvidenceCandidate,
     "report": NeutralReport,
     "manifest": RunManifest,
     "profile": ProfileModel,
