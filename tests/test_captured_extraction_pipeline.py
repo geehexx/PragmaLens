@@ -81,10 +81,10 @@ def test_normalization_tracks_duplicate_candidates_and_dedupes_evidence_refs() -
         }
     ]
     valid, _, _ = normalize_langextract_records(records, text)
-    valid[0].attributes["evidence_refs"] = ["ref-1", "ref-1", "ref-2"]
+    valid[0].evidence_refs = ["ref-1", "ref-1", "ref-2"]
     dup = valid[0].model_copy(deep=True)
     dup.provenance = ["gliner2"]
-    dup.attributes["evidence_refs"] = ["ref-2", "ref-3"]
+    dup.evidence_refs = ["ref-2", "ref-3"]
 
     normalization = normalize_candidate_set([valid[0], dup])
 
@@ -92,7 +92,7 @@ def test_normalization_tracks_duplicate_candidates_and_dedupes_evidence_refs() -
     assert len(normalization.duplicates) == 1
     assert normalization.duplicates[0].status == "duplicate"
     assert normalization.duplicates[0].attributes["duplicate_of"] == valid[0].candidate_id
-    assert normalization.candidates[0].attributes["evidence_refs"] == ["ref-1", "ref-2", "ref-3"]
+    assert normalization.candidates[0].evidence_refs == ["ref-1", "ref-2", "ref-3"]
 
 
 def test_merge_dedupe_surfaces_label_conflicts_and_dedupes_relations() -> None:

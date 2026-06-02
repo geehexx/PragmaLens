@@ -281,7 +281,7 @@ class VerifyClaimsStage:
                 rationale=(
                     "offline baseline verifier requires external evidence before support claims"
                 ),
-                evidence_ids=c.provenance,
+                evidence_ids=c.evidence_refs,
             )
             for c in valid_candidates
         ]

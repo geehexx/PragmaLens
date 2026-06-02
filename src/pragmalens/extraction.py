@@ -74,6 +74,7 @@ def normalize_langextract_records(
                     status=CandidateStatus.QUARANTINED,
                     span=_quarantine_span(document_id),
                     provenance=[source],
+                    evidence_refs=[source],
                     warnings=["missing_char_interval"],
                     attributes={"raw": rec},
                 )
@@ -91,6 +92,7 @@ def normalize_langextract_records(
                     status=CandidateStatus.QUARANTINED,
                     span=_quarantine_span(document_id),
                     provenance=[source],
+                    evidence_refs=[source],
                     warnings=["invalid_char_interval"],
                     attributes={"raw": rec},
                 )
@@ -106,6 +108,7 @@ def normalize_langextract_records(
                     status=CandidateStatus.QUARANTINED,
                     span=_quarantine_span(document_id),
                     provenance=[source],
+                    evidence_refs=[source],
                     warnings=["invalid_char_interval"],
                     attributes={"raw": rec},
                 )
@@ -122,6 +125,7 @@ def normalize_langextract_records(
                     status=CandidateStatus.QUARANTINED,
                     span=_quarantine_span(document_id),
                     provenance=[source],
+                    evidence_refs=[source],
                     warnings=["extraction_text_mismatch"],
                     attributes={"raw": rec},
                 )
@@ -138,6 +142,7 @@ def normalize_langextract_records(
                     document_id=document_id, start_char=start, end_char=end, text=span_text
                 ),
                 provenance=[source],
+                evidence_refs=[source],
                 attributes={"raw": rec},
             )
         )
@@ -196,6 +201,7 @@ def normalize_gliner2_output_with_quarantine(
                     status=CandidateStatus.QUARANTINED,
                     span=_quarantine_span(document_id),
                     provenance=[source],
+                    evidence_refs=[source],
                     warnings=["invalid_char_interval"],
                     attributes={"raw": ent},
                 )
@@ -219,6 +225,7 @@ def normalize_gliner2_output_with_quarantine(
                 ),
                 confidence=float(ent.get("confidence", 0.0)),
                 provenance=[source],
+                evidence_refs=[source],
                 relations=[json.loads(relation) for relation in sorted(relation_keys)],
                 attributes={"raw": ent, "raw_label": raw_label},
             )
@@ -262,20 +269,17 @@ def normalize_candidate_set(
         _ensure_evidence_refs(existing)
         _ensure_evidence_refs(cand)
         existing.provenance = sorted(set(existing.provenance + cand.provenance))
+        existing.evidence_refs = sorted(set(existing.evidence_refs + cand.evidence_refs))
         existing.warnings = sorted(set(existing.warnings + cand.warnings))
         relation_keys = {
             json.dumps(rel, sort_keys=True) for rel in existing.relations + cand.relations
         }
         merged_relations = sorted(relation_keys)
         existing.relations = [json.loads(relation) for relation in merged_relations]
-        existing.attributes["evidence_refs"] = sorted(
-            set(existing.attributes["evidence_refs"] + cand.attributes["evidence_refs"])
-        )
         duplicate = cand.model_copy(deep=True)
         duplicate.status = CandidateStatus.DUPLICATE
         duplicate.warnings = sorted(set([*duplicate.warnings, "absorbed_duplicate"]))
         duplicate.attributes["duplicate_of"] = existing.candidate_id
-        duplicate.attributes["evidence_refs"] = list(cand.attributes["evidence_refs"])
         duplicate_candidates.append(duplicate)
 
     result = list(merged.values())
@@ -318,6 +322,6 @@ def normalize_candidate_set(
 
 
 def _ensure_evidence_refs(candidate: EvidenceCandidate) -> None:
-    """Populate a canonical deduped evidence-ref list in candidate attributes."""
-    evidence_refs = candidate.attributes.get("evidence_refs", candidate.provenance)
-    candidate.attributes["evidence_refs"] = sorted(set(str(ref) for ref in evidence_refs))
+    """Populate a canonical deduped evidence-ref list on the candidate model."""
+    evidence_refs = candidate.evidence_refs or candidate.provenance
+    candidate.evidence_refs = sorted(set(str(ref) for ref in evidence_refs))

@@ -58,9 +58,17 @@ class EvidenceCandidate(BaseModel):
     span: SpanRef
     confidence: float | None = None
     provenance: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     relations: list[dict[str, Any]] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _default_evidence_refs(self) -> EvidenceCandidate:
+        """Backfill evidence refs from provenance when callers omit them."""
+        if not self.evidence_refs:
+            self.evidence_refs = list(self.provenance)
+        return self
 
 
 class VerificationVerdict(BaseModel):
