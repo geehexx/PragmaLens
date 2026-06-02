@@ -16,8 +16,12 @@ pre-commit:
 pre-push:
   parallel: true
   commands:
+    lock:
+      run: uv lock --check
     mypy:
       run: uv run mypy src/pragmalens tests
+    interrogate:
+      run: uv run interrogate src/pragmalens
     compileall:
       run: uv run python -m compileall -q src tests
     pytest:
@@ -26,3 +30,5 @@ pre-push:
       run: uv run python scripts/check_schema_parity.py
     stage:
       run: uv run python scripts/check_stage_graph.py
+    build:
+      run: uv run python -m build

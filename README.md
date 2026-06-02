@@ -53,6 +53,8 @@ uv run python scripts/check_schema_parity.py
 uv run python scripts/check_stage_graph.py
 ```
 
+Coverage is a real gate. The configured report must stay at or above 90%.
+
 ## Hook Setup
 
 ```bash
@@ -64,6 +66,9 @@ uv run lefthook install
 Heavy Codex planning and operator-only control artifacts live outside this
 product repo. See [docs/local-codex-bootstrap.md](docs/local-codex-bootstrap.md)
 to restore the local overlay from the private sibling control repo.
+
+RTK is optional and local-only. Product commands, hooks, and CI must not depend
+on RTK being installed.
 
 ## Nox Sessions
 

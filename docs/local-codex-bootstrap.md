@@ -30,3 +30,5 @@ Git exclude rules so product history stays free of operator-only artifacts.
 - Do not create tracked symlinks into the private repo.
 - If the local overlay is missing, product code, tests, packaging, and CI should
   still work without it.
+- RTK is an optional local helper for read-only workflows only; product
+  verification commands remain `uv`-driven and RTK-independent.

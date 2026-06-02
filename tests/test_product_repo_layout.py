@@ -17,5 +17,16 @@ def test_private_control_plane_files_are_not_tracked() -> None:
     assert tracked == []
 
 
+def test_tracked_files_do_not_include_private_symlinks() -> None:
+    result = subprocess.run(
+        ["uv", "run", "python", "scripts/check_product_repo_layout.py"],
+        cwd=Path.cwd(),
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert "tracked files do not include symlinks into private control state" in result.stdout
+
+
 def test_local_codex_bootstrap_doc_exists() -> None:
     assert Path("docs/local-codex-bootstrap.md").exists()
