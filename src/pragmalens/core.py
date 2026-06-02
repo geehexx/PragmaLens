@@ -15,6 +15,7 @@ from pragmalens.stages import (
 
 
 def normalize_document(text: str, document_id: str) -> NeutralReport:
+    """Build the baseline neutral report shape for a normalized document."""
     return NeutralReport(
         run_id=f"run-{document_id}",
         document_id=document_id,
@@ -26,6 +27,7 @@ def normalize_document(text: str, document_id: str) -> NeutralReport:
 
 
 def build_manifest(input_path: str, report_path: str, document_id: str) -> RunManifest:
+    """Build the baseline run manifest for a pipeline execution."""
     return RunManifest(
         run_id=f"run-{document_id}",
         document_id=document_id,
@@ -36,6 +38,7 @@ def build_manifest(input_path: str, report_path: str, document_id: str) -> RunMa
 
 
 def derive_document_id(input_path: str) -> str:
+    """Derive a stable document identifier from the input path."""
     return Path(input_path).stem or "document"
 
 
@@ -48,6 +51,7 @@ def run_pipeline(
     trace_dir: Path,
     profile_name: str = "default",
 ) -> tuple[NeutralReport, RunManifest]:
+    """Execute the default v0.1 pipeline and emit traces plus contracts."""
     profile = load_profile(profile_name)
     context = RunContext(
         document_id=document_id,
@@ -69,6 +73,7 @@ def run_pipeline(
 def run_pr02_pipeline(
     text: str, document_id: str, input_path: str, report_path: str, trace_dir: Path
 ) -> tuple[NeutralReport, RunManifest]:
+    """Run the current default pipeline using the historical PR-02 entrypoint."""
     return run_pipeline(
         text=text,
         document_id=document_id,

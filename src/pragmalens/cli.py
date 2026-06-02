@@ -18,6 +18,7 @@ def schema_export(
     out: str = typer.Option(..., help="Output path for JSON schema"),
     model: str = typer.Option("report", help="Model name: report|manifest|span_ref"),
 ) -> None:
+    """Export a JSON schema for one of the supported contract models."""
     dest = export_schema(model_name=model, out_path=out)
     typer.echo(str(dest))
 
@@ -33,6 +34,7 @@ def run(
     trace_dir: str = typer.Option("trace", "--trace-dir", help="Trace artifact directory"),
     profile: str = typer.Option("default", "--profile", help="Pipeline profile name"),
 ) -> None:
+    """Run the offline PragmaLens pipeline against one Markdown or text input."""
     src = Path(input)
     if src.suffix.lower() not in {".md", ".txt"}:
         raise typer.BadParameter("input must be markdown (.md) or plain text (.txt)")
@@ -69,6 +71,7 @@ def run(
 
 
 def _render_markdown_report(payload: dict[str, object]) -> str:
+    """Render a minimal Markdown summary for the generated report payload."""
     findings = payload.get("findings", [])
     lines = [
         f"# PragmaLens Report: {payload['document_id']}",

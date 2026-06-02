@@ -18,6 +18,7 @@ MODEL_MAP: dict[str, type[BaseModel]] = {
 
 
 def export_schema(model_name: str, out_path: str) -> Path:
+    """Export one supported Pydantic model schema to a JSON file."""
     if model_name not in MODEL_MAP:
         raise ValueError(f"Unknown model '{model_name}'. Expected one of: {', '.join(MODEL_MAP)}")
 

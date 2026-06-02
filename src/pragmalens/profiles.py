@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 
 class ProfileModel(BaseModel):
+    """Validated on-disk representation of a PragmaLens pipeline profile."""
+
     name: str = Field(min_length=1)
     langextract_fixture: str = Field(min_length=1)
     gliner2_fixture: str = Field(min_length=1)
@@ -17,6 +19,8 @@ class ProfileModel(BaseModel):
 
 @dataclass
 class Profile:
+    """Runtime profile resolved from a fixture-backed profile definition."""
+
     name: str
     langextract_fixture: str
     gliner2_fixture: str
@@ -36,6 +40,7 @@ DEFAULT_PROFILE = {
 
 
 def load_profile(name: str = "default") -> Profile:
+    """Load a named profile from package fixtures, falling back to the default."""
     profiles_dir = Path(__file__).resolve().parent / "fixtures"
     path = profiles_dir / f"{name}.profile.json"
     payload: dict[str, Any] = (

@@ -28,6 +28,8 @@ from pragmalens.profiles import Profile
 
 @dataclass
 class RunContext:
+    """Mutable state shared across pipeline stages during one run."""
+
     document_id: str
     input_path: str
     text: str
@@ -42,12 +44,16 @@ class RunContext:
 
 @dataclass
 class StageResult:
+    """Status record returned by one pipeline stage."""
+
     stage_id: str
     status: str
     warnings: list[str] = field(default_factory=list)
 
 
 class PipelineStage(Protocol):
+    """Protocol implemented by each pipeline stage."""
+
     id: str
     version: str
     input_contract: str
@@ -57,12 +63,15 @@ class PipelineStage(Protocol):
 
 
 class NormalizeDocumentStage:
+    """Normalize line endings and record basic document metadata."""
+
     id = "normalize_document"
     version = "0.1"
     input_contract = "raw_text"
     output_contract = "normalized_text"
 
     def run(self, context: RunContext) -> StageResult:
+        """Normalize document text before downstream indexing."""
         normalized = context.text.replace("\r\n", "\n").replace("\r", "\n")
         context.text = normalized
         context.artifacts[self.id] = {"document_id": context.document_id, "length": len(normalized)}
@@ -70,17 +79,21 @@ class NormalizeDocumentStage:
 
 
 class SegmentAndIndexSpansStage:
+    """Build sentence and paragraph span indexes from normalized text."""
+
     id = "segment_and_index_spans"
     version = "0.1"
     input_contract = "normalized_text"
     output_contract = "sentence_and_paragraph_spans"
 
     def __init__(self) -> None:
+        """Initialize a lightweight sentence segmenter for indexing work."""
         nlp = spacy.blank("en")
         nlp.add_pipe("sentencizer")
         self._nlp = nlp
 
     def run(self, context: RunContext) -> StageResult:
+        """Emit sentence and paragraph spans for later stages."""
         doc = self._nlp(context.text)
         sentences = [
             {"start_char": s.start_char, "end_char": s.end_char, "text": s.text} for s in doc.sents
@@ -100,6 +113,8 @@ class SegmentAndIndexSpansStage:
 
 
 class SpacySubstrateStage:
+    """Emit token-level substrate artifacts and simple deterministic cues."""
+
     id = "spacy_substrate"
     version = "0.1"
     input_contract = "normalized_text + span_index"
@@ -110,11 +125,13 @@ class SpacySubstrateStage:
     NEGATION: ClassVar[set[str]] = {"not", "no", "never"}
 
     def __init__(self) -> None:
+        """Initialize the minimal spaCy pipeline needed for substrate traces."""
         nlp = spacy.blank("en")
         nlp.add_pipe("sentencizer")
         self._nlp = nlp
 
     def run(self, context: RunContext) -> StageResult:
+        """Produce token, sentence, and cue artifacts from the current text."""
         doc = self._nlp(context.text)
         tokens: list[dict[str, Any]] = []
         cues: list[dict[str, Any]] = []
@@ -153,12 +170,15 @@ class SpacySubstrateStage:
 
 
 class LangExtractCapturedStage:
+    """Load fixture-backed LangExtract output into normalized candidates."""
+
     id = "langextract_discourse"
     version = "0.1"
     input_contract = "normalized_text + profile"
     output_contract = "langextract_candidates + quarantined"
 
     def run(self, context: RunContext) -> StageResult:
+        """Normalize captured LangExtract records for offline pipeline runs."""
         assert context.profile is not None
         records = load_jsonl(context.profile.langextract_fixture)
         valid, quarantined, meta = normalize_langextract_records(
@@ -176,12 +196,15 @@ class LangExtractCapturedStage:
 
 
 class GLiNER2CapturedStage:
+    """Load fixture-backed GLiNER2 output into normalized candidates."""
+
     id = "gliner2_candidates"
     version = "0.1"
     input_contract = "normalized_text + profile"
     output_contract = "gliner2_candidates"
 
     def run(self, context: RunContext) -> StageResult:
+        """Normalize captured GLiNER2 entities for offline pipeline runs."""
         assert context.profile is not None
         payload = load_json(context.profile.gliner2_fixture)
         candidates = normalize_gliner2_output(
@@ -196,12 +219,15 @@ class GLiNER2CapturedStage:
 
 
 class EvidenceNormalizerStage:
+    """Merge duplicate candidates and surface label conflicts."""
+
     id = "evidence_normalizer"
     version = "0.1"
     input_contract = "raw_candidates"
     output_contract = "merged_candidates"
 
     def run(self, context: RunContext) -> StageResult:
+        """Deduplicate and normalize evidence candidates collected so far."""
         merged = merge_and_dedupe_candidates(context.candidates)
         context.candidates = merged
         context.artifacts[self.id] = {"candidates": [c.model_dump(mode="json") for c in merged]}
@@ -209,12 +235,15 @@ class EvidenceNormalizerStage:
 
 
 class VerifyClaimsStage:
+    """Emit the offline baseline verifier contract for each candidate."""
+
     id = "verify_claims"
     version = "0.1"
     input_contract = "merged_candidates"
     output_contract = "verification_verdicts"
 
     def run(self, context: RunContext) -> StageResult:
+        """Populate baseline verification verdicts without live evidence lookup."""
         verdicts = [
             VerificationVerdict(
                 candidate_id=c.candidate_id,
@@ -232,12 +261,15 @@ class VerifyClaimsStage:
 
 
 class SynthesizeFindingsStage:
+    """Convert verifier outcomes into user-facing findings."""
+
     id = "synthesize_findings"
     version = "0.1"
     input_contract = "verification_verdicts"
     output_contract = "findings"
 
     def run(self, context: RunContext) -> StageResult:
+        """Generate synthesized findings for actionable negative verdicts."""
         verdicts = context.metadata.get("verification", [])
         findings = [
             Finding(
@@ -256,29 +288,38 @@ class SynthesizeFindingsStage:
 
 
 class RenderReportsAndTracesStage:
+    """Record that final rendering is handled by the CLI orchestration layer."""
+
     id = "render_reports_and_traces"
     version = "0.1"
     input_contract = "findings + candidates + stage_results"
     output_contract = "report_json + report_md + run_manifest + trace"
 
     def run(self, context: RunContext) -> StageResult:
+        """Store renderer metadata for downstream trace emission."""
         context.artifacts[self.id] = {"renderer": "cli_orchestrated"}
         return StageResult(stage_id=self.id, status="ok")
 
 
 class PipelineRunner:
+    """Execute a linear list of stages against one run context."""
+
     def __init__(self, stages: list[PipelineStage]) -> None:
+        """Store the stage sequence to execute."""
         self.stages = stages
 
     def run(self, context: RunContext) -> list[StageResult]:
+        """Run every stage in order and collect per-stage results."""
         return [stage.run(context) for stage in self.stages]
 
 
 def _cue(kind: str, start: int, end: int, text: str) -> dict[str, Any]:
+    """Build a compact cue payload for the substrate trace."""
     return {"kind": kind, "start_char": start, "end_char": end, "text": text}
 
 
 def default_pr04_stages() -> list[PipelineStage]:
+    """Return the historical PR-04 stage sequence."""
     return [
         NormalizeDocumentStage(),
         SegmentAndIndexSpansStage(),
@@ -290,6 +331,7 @@ def default_pr04_stages() -> list[PipelineStage]:
 
 
 def default_v01_stages() -> list[PipelineStage]:
+    """Return the current full v0.1 stage graph."""
     return [
         NormalizeDocumentStage(),
         SegmentAndIndexSpansStage(),
@@ -304,6 +346,7 @@ def default_v01_stages() -> list[PipelineStage]:
 
 
 def default_pr02_stages() -> list[PipelineStage]:
+    """Return the historical PR-02 stage sequence."""
     return [
         NormalizeDocumentStage(),
         SegmentAndIndexSpansStage(),
@@ -312,6 +355,7 @@ def default_pr02_stages() -> list[PipelineStage]:
 
 
 def validate_pr02_graph(stages: list[PipelineStage]) -> None:
+    """Validate that a stage list matches the historical PR-02 graph."""
     expected = ["normalize_document", "segment_and_index_spans", "spacy_substrate"]
     actual = [s.id for s in stages]
     if actual != expected:
@@ -319,6 +363,7 @@ def validate_pr02_graph(stages: list[PipelineStage]) -> None:
 
 
 def validate_stage_graph(stages: list[PipelineStage]) -> None:
+    """Validate that a stage list matches the current full v0.1 graph."""
     expected = [
         "normalize_document",
         "segment_and_index_spans",
@@ -338,6 +383,7 @@ def validate_stage_graph(stages: list[PipelineStage]) -> None:
 def build_report_and_manifest(
     context: RunContext, input_path: str, report_path: str, stage_results: list[StageResult]
 ) -> tuple[NeutralReport, RunManifest]:
+    """Build the final report and manifest from completed stage state."""
     report = NeutralReport(
         run_id=f"run-{context.document_id}",
         document_id=context.document_id,
@@ -369,9 +415,11 @@ def build_report_and_manifest(
 
 
 def write_traces(trace_dir: Path, context: RunContext, stage_results: list[StageResult]) -> None:
+    """Write JSON trace artifacts for each major pipeline surface."""
     trace_dir.mkdir(parents=True, exist_ok=True)
 
     def dump(name: str, payload: Any) -> None:
+        """Serialize one trace payload into the trace directory."""
         (trace_dir / name).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
     dump("normalized_document.json", context.artifacts.get("normalize_document", {}))
@@ -391,4 +439,5 @@ def write_traces(trace_dir: Path, context: RunContext, stage_results: list[Stage
 
 
 def is_valid_span(text: str, start: int, end: int) -> bool:
+    """Return whether a character interval is valid for the given text."""
     return not (start < 0 or end <= start or end > len(text))

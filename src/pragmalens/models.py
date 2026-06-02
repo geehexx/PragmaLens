@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class CandidateStatus(StrEnum):
+    """Lifecycle states for extracted evidence candidates."""
+
     VALID = "valid"
     QUARANTINED = "quarantined"
     DUPLICATE = "duplicate"
@@ -15,6 +17,8 @@ class CandidateStatus(StrEnum):
 
 
 class VerificationStatus(StrEnum):
+    """Verifier outcomes for normalized candidates."""
+
     SUPPORTED = "supported"
     UNSUPPORTED = "unsupported"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
@@ -22,6 +26,8 @@ class VerificationStatus(StrEnum):
 
 
 class SpanRef(BaseModel):
+    """Offset-based reference into a source document."""
+
     document_id: str = Field(min_length=1)
     start_char: int = Field(ge=0)
     end_char: int = Field(gt=0)
@@ -29,18 +35,22 @@ class SpanRef(BaseModel):
 
     @model_validator(mode="after")
     def _validate_offsets(self) -> SpanRef:
+        """Reject inverted or zero-width spans."""
         if self.end_char <= self.start_char:
             raise ValueError("end_char must be greater than start_char")
         return self
 
     @model_validator(mode="after")
     def _validate_text_length(self) -> SpanRef:
+        """Ensure embedded text matches the declared span width when present."""
         if self.text and len(self.text) != (self.end_char - self.start_char):
             raise ValueError("text length must match span width when text is provided")
         return self
 
 
 class EvidenceCandidate(BaseModel):
+    """Normalized candidate produced by one or more extraction stages."""
+
     candidate_id: str = Field(min_length=1)
     label: str = Field(min_length=1)
     kind: str = Field(min_length=1)
@@ -54,6 +64,8 @@ class EvidenceCandidate(BaseModel):
 
 
 class VerificationVerdict(BaseModel):
+    """Verifier result for a single evidence candidate."""
+
     candidate_id: str = Field(min_length=1)
     status: VerificationStatus
     rationale: str = Field(min_length=1)
@@ -62,6 +74,8 @@ class VerificationVerdict(BaseModel):
 
 
 class Finding(BaseModel):
+    """User-facing finding synthesized from verifier output."""
+
     finding_id: str = Field(min_length=1)
     candidate_id: str = Field(min_length=1)
     verdict: VerificationStatus
@@ -70,6 +84,8 @@ class Finding(BaseModel):
 
 
 class NeutralReport(BaseModel):
+    """Top-level offline report contract emitted by the product pipeline."""
+
     report_version: str = "0.1"
     run_id: str = Field(min_length=1)
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -82,6 +98,8 @@ class NeutralReport(BaseModel):
 
 
 class RunManifest(BaseModel):
+    """Execution manifest describing one pipeline run and its artifacts."""
+
     run_id: str = Field(min_length=1)
     document_id: str = Field(min_length=1)
     input_path: str = Field(min_length=1)
@@ -97,6 +115,7 @@ class RunManifest(BaseModel):
     @field_validator("stages_requested")
     @classmethod
     def _stages_non_empty(cls, value: list[str]) -> list[str]:
+        """Require at least one recorded stage in the run manifest."""
         if not value:
             raise ValueError("stages_requested must not be empty")
         return value

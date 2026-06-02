@@ -21,6 +21,7 @@ def run_captured_extraction_pipeline(
     gliner2_json: str | Path,
     trace_dir: str | Path,
 ) -> dict[str, Any]:
+    """Run the fixture-backed extraction pipeline used by offline tests."""
     lx_records = load_jsonl(langextract_jsonl)
     gl_payload = load_json(gliner2_json)
 
@@ -59,4 +60,5 @@ def run_captured_extraction_pipeline(
 
 
 def candidates_to_report_payload(candidates: list[EvidenceCandidate]) -> list[dict[str, Any]]:
+    """Serialize evidence candidates into JSON-compatible report payloads."""
     return [c.model_dump(mode="json") for c in candidates]

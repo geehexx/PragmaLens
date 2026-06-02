@@ -8,15 +8,18 @@ from pragmalens.models import CandidateStatus, EvidenceCandidate, SpanRef
 
 
 def load_json(path: str | Path) -> Any:
+    """Load a JSON payload from disk."""
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def load_jsonl(path: str | Path) -> list[dict[str, Any]]:
+    """Load newline-delimited JSON records from disk."""
     lines = Path(path).read_text(encoding="utf-8").splitlines()
     return [json.loads(line) for line in lines if line.strip()]
 
 
 def _quarantine_span(document_id: str) -> SpanRef:
+    """Return a placeholder span used for quarantined extraction records."""
     return SpanRef(document_id=document_id, start_char=0, end_char=1, text=" ")
 
 
@@ -27,6 +30,7 @@ def normalize_langextract_records(
     document_id: str = "doc",
     source: str = "langextract",
 ) -> tuple[list[EvidenceCandidate], list[EvidenceCandidate], dict[str, Any]]:
+    """Normalize captured LangExtract records into valid and quarantined candidates."""
     valid: list[EvidenceCandidate] = []
     quarantined: list[EvidenceCandidate] = []
 
@@ -135,6 +139,7 @@ def normalize_gliner2_output(
     source: str = "gliner2",
     label_map: dict[str, str] | None = None,
 ) -> list[EvidenceCandidate]:
+    """Normalize captured GLiNER2 output into product evidence candidates."""
     candidates: list[EvidenceCandidate] = []
     entities = payload.get("entities", [])
     relations = payload.get("relations", [])
@@ -166,6 +171,7 @@ def normalize_gliner2_output(
 
 
 def merge_and_dedupe_candidates(candidates: list[EvidenceCandidate]) -> list[EvidenceCandidate]:
+    """Merge duplicate candidates while preserving provenance and conflict warnings."""
     merged: dict[tuple[str, int, int, str, str], EvidenceCandidate] = {}
     span_labels: dict[tuple[str, int, int], set[str]] = {}
 

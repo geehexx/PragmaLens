@@ -12,4 +12,5 @@ from pragmalens.pipeline.captured_extraction import (  # noqa: F401
 
 
 def run_captured_extraction(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """Backward-compatible wrapper around the captured extraction entrypoint."""
     return run_captured_extraction_pipeline(*args, **kwargs)
