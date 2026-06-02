@@ -16,6 +16,7 @@ from pragmalens.extraction import (
     normalize_langextract_records,
 )
 from pragmalens.models import (
+    CandidateStatus,
     EvidenceCandidate,
     Finding,
     NeutralReport,
@@ -230,7 +231,24 @@ class EvidenceNormalizerStage:
         """Deduplicate and normalize evidence candidates collected so far."""
         merged = merge_and_dedupe_candidates(context.candidates)
         context.candidates = merged
-        context.artifacts[self.id] = {"candidates": [c.model_dump(mode="json") for c in merged]}
+        conflicting = [
+            {
+                "candidate_id": candidate.candidate_id,
+                "warnings": candidate.warnings,
+                "conflicting_labels": candidate.attributes.get("conflicting_labels", []),
+                "conflicting_kinds": candidate.attributes.get("conflicting_kinds", []),
+            }
+            for candidate in merged
+            if "label_conflict" in candidate.warnings or "kind_conflict" in candidate.warnings
+        ]
+        context.artifacts[self.id] = {
+            "candidates": [c.model_dump(mode="json") for c in merged],
+            "conflicts": conflicting,
+        }
+        if conflicting:
+            context.warnings.extend(
+                [f"normalization_conflict:{item['candidate_id']}" for item in conflicting]
+            )
         return StageResult(stage_id=self.id, status="ok")
 
 
@@ -244,6 +262,16 @@ class VerifyClaimsStage:
 
     def run(self, context: RunContext) -> StageResult:
         """Populate baseline verification verdicts without live evidence lookup."""
+        skipped = [
+            candidate
+            for candidate in context.candidates
+            if candidate.status is not CandidateStatus.VALID
+        ]
+        valid_candidates = [
+            candidate
+            for candidate in context.candidates
+            if candidate.status is CandidateStatus.VALID
+        ]
         verdicts = [
             VerificationVerdict(
                 candidate_id=c.candidate_id,
@@ -253,9 +281,16 @@ class VerifyClaimsStage:
                 ),
                 evidence_ids=c.provenance,
             )
-            for c in context.candidates
+            for c in valid_candidates
         ]
-        context.artifacts[self.id] = {"verdicts": [v.model_dump(mode="json") for v in verdicts]}
+        if skipped:
+            context.warnings.extend(
+                [f"verifier_skipped_non_valid:{candidate.candidate_id}" for candidate in skipped]
+            )
+        context.artifacts[self.id] = {
+            "verdicts": [v.model_dump(mode="json") for v in verdicts],
+            "skipped_candidates": [candidate.model_dump(mode="json") for candidate in skipped],
+        }
         context.metadata["verification"] = verdicts
         return StageResult(stage_id=self.id, status="ok")
 
@@ -381,7 +416,11 @@ def validate_stage_graph(stages: list[PipelineStage]) -> None:
 
 
 def build_report_and_manifest(
-    context: RunContext, input_path: str, report_path: str, stage_results: list[StageResult]
+    context: RunContext,
+    input_path: str,
+    report_path: str,
+    trace_dir: Path,
+    stage_results: list[StageResult],
 ) -> tuple[NeutralReport, RunManifest]:
     """Build the final report and manifest from completed stage state."""
     report = NeutralReport(
@@ -408,7 +447,8 @@ def build_report_and_manifest(
         artifacts={
             "report_json": report_path,
             "run_manifest_json": str(Path(report_path).with_name("run_manifest.json")),
-            "trace_dir": "trace",
+            "trace_dir": str(trace_dir),
+            "trace_manifest_json": str(trace_dir / "trace_manifest.json"),
         },
     )
     return report, manifest
@@ -436,6 +476,15 @@ def write_traces(trace_dir: Path, context: RunContext, stage_results: list[Stage
         [c.model_dump(mode="json") for c in context.quarantined_candidates],
     )
     dump("stage_results.json", [r.__dict__ for r in stage_results])
+    dump(
+        "trace_manifest.json",
+        {
+            "run_id": f"run-{context.document_id}",
+            "document_id": context.document_id,
+            "trace_dir": str(trace_dir),
+            "files": sorted(path.name for path in trace_dir.iterdir() if path.is_file()),
+        },
+    )
 
 
 def is_valid_span(text: str, start: int, end: int) -> bool:

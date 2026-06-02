@@ -66,7 +66,11 @@ def run_pipeline(
     results = runner.run(context)
     write_traces(trace_dir=trace_dir, context=context, stage_results=results)
     return build_report_and_manifest(
-        context, input_path=input_path, report_path=report_path, stage_results=results
+        context,
+        input_path=input_path,
+        report_path=report_path,
+        trace_dir=trace_dir,
+        stage_results=results,
     )
 
 

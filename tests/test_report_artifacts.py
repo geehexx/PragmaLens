@@ -34,8 +34,15 @@ def test_cli_emits_report_manifest_markdown_and_trace_with_shared_run_id(tmp_pat
     assert result.exit_code == 0, result.output
     report_payload = json.loads(report.read_text(encoding="utf-8"))
     manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+    trace_manifest_payload = json.loads((trace / "trace_manifest.json").read_text(encoding="utf-8"))
     assert report_payload["run_id"] == manifest_payload["run_id"]
+    assert trace_manifest_payload["run_id"] == report_payload["run_id"]
+    assert manifest_payload["artifacts"]["trace_dir"] == str(trace)
+    assert manifest_payload["artifacts"]["trace_manifest_json"] == str(
+        trace / "trace_manifest.json"
+    )
     assert report_md.exists()
     assert (trace / "stage_results.json").exists()
     assert (trace / "verification.json").exists()
     assert (trace / "findings.json").exists()
+    assert "verification.json" in trace_manifest_payload["files"]

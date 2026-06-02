@@ -65,6 +65,30 @@ def test_merge_dedupe_preserves_provenance() -> None:
     merged = merge_and_dedupe_candidates([valid[0], dup])
     assert len(merged) == 1
     assert sorted(merged[0].provenance) == ["gliner2", "langextract"]
+    assert merged[0].attributes["merged_provenance"] == ["gliner2", "langextract"]
+
+
+def test_merge_dedupe_surfaces_label_conflicts_and_dedupes_relations() -> None:
+    text = "Alice signs"
+    payload = {
+        "entities": [
+            {"start_char": 0, "end_char": 5, "label": "agent", "kind": "entity", "confidence": 0.9},
+            {"start_char": 0, "end_char": 5, "label": "owner", "kind": "entity", "confidence": 0.7},
+        ],
+        "relations": [
+            {"head": 0, "tail": 0, "label": "self"},
+            {"head": 0, "tail": 0, "label": "self"},
+        ],
+    }
+    candidates = normalize_gliner2_output(payload, text)
+
+    merged = merge_and_dedupe_candidates(candidates)
+
+    assert len(merged) == 2
+    assert max(len(candidate.relations) for candidate in merged) == 1
+    for candidate in merged:
+        assert "label_conflict" in candidate.warnings
+        assert candidate.attributes["conflicting_labels"] == ["agent", "owner"]
 
 
 def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
