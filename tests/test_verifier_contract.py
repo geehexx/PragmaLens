@@ -8,6 +8,7 @@ from pragmalens.models import (
     VerificationVerdict,
 )
 from pragmalens.stages import RunContext, StageResult, VerifyClaimsStage
+from pragmalens.verifier import CrossEncoderNliVerifier, MiniCheckVerifier
 
 
 @pytest.mark.parametrize("status", list(VerificationStatus))
@@ -125,6 +126,84 @@ class WrongCountVerifier:
         return []
 
 
+class FakeMiniCheckScorer:
+    def score(
+        self,
+        *,
+        docs: list[str],
+        claims: list[str],
+    ) -> tuple[list[int], list[float], None, None]:
+        assert docs == ["Need evidence."]
+        assert claims == ["Need"]
+        return [1], [0.97], None, None
+
+
+class FakeCrossEncoderModel:
+    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+        assert pairs == [("Need evidence.", "Need")]
+        return [[0.1, 0.8, 0.1]]
+
+
+class FakeMiniCheckUnsupportedScorer:
+    def score(
+        self,
+        *,
+        docs: list[str],
+        claims: list[str],
+    ) -> tuple[list[str], list[float], None, None]:
+        assert docs == ["Need evidence."]
+        assert claims == ["Need"]
+        return ["unsupported"], [0.02], None, None
+
+
+class FakeMiniCheckBadLabelScorer:
+    def score(
+        self,
+        *,
+        docs: list[str],
+        claims: list[str],
+    ) -> tuple[list[str], list[float], None, None]:
+        assert docs == ["Need evidence."]
+        assert claims == ["Need"]
+        return ["maybe"], [0.5], None, None
+
+
+class FakeMiniCheckWrongCountScorer:
+    def score(
+        self,
+        *,
+        docs: list[str],
+        claims: list[str],
+    ) -> tuple[list[int], list[float], None, None]:
+        assert docs == ["Need evidence."]
+        assert claims == ["Need"]
+        return [1, 0], [0.9], None, None
+
+
+class FakeCrossEncoderContradictionModel:
+    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+        assert pairs == [("Need evidence.", "Need")]
+        return [[0.9, 0.05, 0.05]]
+
+
+class FakeCrossEncoderNeutralModel:
+    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+        assert pairs == [("Need evidence.", "Need")]
+        return [[0.1, 0.2, 0.7]]
+
+
+class FakeCrossEncoderEmptyRowModel:
+    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+        assert pairs == [("Need evidence.", "Need")]
+        return [[]]
+
+
+class FakeCrossEncoderWideRowModel:
+    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+        assert pairs == [("Need evidence.", "Need")]
+        return [[0.1, 0.2, 0.3, 0.4]]
+
+
 def test_verifier_stage_emits_error_verdicts_when_adapter_raises() -> None:
     context = RunContext(
         document_id="doc",
@@ -177,3 +256,168 @@ def test_verifier_stage_emits_error_verdicts_on_cardinality_mismatch() -> None:
     assert context.metadata["verification"][0].status is VerificationStatus.VERIFIER_ERROR
     assert context.metadata["verification"][0].error == "verifier returned wrong verdict count"
     assert context.artifacts["verify_claims"]["verdicts"][0]["evidence_ids"] == ["source-a"]
+
+
+def test_minicheck_verifier_maps_binary_scores() -> None:
+    candidate = EvidenceCandidate(
+        candidate_id="candidate-1",
+        label="claim",
+        kind="claim",
+        status=CandidateStatus.VALID,
+        span=SpanRef(document_id="doc", start_char=0, end_char=4, text="Need"),
+        provenance=["fixture"],
+        evidence_refs=["source-a"],
+    )
+
+    verdicts = MiniCheckVerifier(FakeMiniCheckScorer()).verify(
+        [candidate], document_id="doc", text="Need evidence."
+    )
+
+    assert verdicts[0].status is VerificationStatus.SUPPORTED
+    assert verdicts[0].evidence_ids == ["source-a"]
+    assert "0.970" in verdicts[0].rationale
+
+
+def test_crossencoder_verifier_maps_entailment_scores() -> None:
+    candidate = EvidenceCandidate(
+        candidate_id="candidate-1",
+        label="claim",
+        kind="claim",
+        status=CandidateStatus.VALID,
+        span=SpanRef(document_id="doc", start_char=0, end_char=4, text="Need"),
+        provenance=["fixture"],
+        evidence_refs=["source-a"],
+    )
+
+    verdicts = CrossEncoderNliVerifier(FakeCrossEncoderModel()).verify(
+        [candidate], document_id="doc", text="Need evidence."
+    )
+
+    assert verdicts[0].status is VerificationStatus.SUPPORTED
+    assert verdicts[0].evidence_ids == ["source-a"]
+    assert verdicts[0].rationale.endswith("entailment")
+
+
+def test_minicheck_verifier_maps_unsupported_scores() -> None:
+    candidate = EvidenceCandidate(
+        candidate_id="candidate-1",
+        label="claim",
+        kind="claim",
+        status=CandidateStatus.VALID,
+        span=SpanRef(document_id="doc", start_char=0, end_char=4, text="Need"),
+        provenance=["fixture"],
+        evidence_refs=["source-a"],
+    )
+
+    verdicts = MiniCheckVerifier(FakeMiniCheckUnsupportedScorer()).verify(
+        [candidate], document_id="doc", text="Need evidence."
+    )
+
+    assert verdicts[0].status is VerificationStatus.UNSUPPORTED
+    assert "0.020" in verdicts[0].rationale
+
+
+def test_minicheck_verifier_rejects_unknown_labels() -> None:
+    candidate = EvidenceCandidate(
+        candidate_id="candidate-1",
+        label="claim",
+        kind="claim",
+        status=CandidateStatus.VALID,
+        span=SpanRef(document_id="doc", start_char=0, end_char=4, text="Need"),
+        provenance=["fixture"],
+        evidence_refs=["source-a"],
+    )
+
+    with pytest.raises(ValueError, match="Unsupported MiniCheck label value"):
+        MiniCheckVerifier(FakeMiniCheckBadLabelScorer()).verify(
+            [candidate], document_id="doc", text="Need evidence."
+        )
+
+
+def test_minicheck_verifier_rejects_result_count_mismatch() -> None:
+    candidate = EvidenceCandidate(
+        candidate_id="candidate-1",
+        label="claim",
+        kind="claim",
+        status=CandidateStatus.VALID,
+        span=SpanRef(document_id="doc", start_char=0, end_char=4, text="Need"),
+        provenance=["fixture"],
+        evidence_refs=["source-a"],
+    )
+
+    with pytest.raises(ValueError, match="MiniCheck scorer returned wrong result count"):
+        MiniCheckVerifier(FakeMiniCheckWrongCountScorer()).verify(
+            [candidate], document_id="doc", text="Need evidence."
+        )
+
+
+def test_crossencoder_verifier_maps_contradiction_scores() -> None:
+    candidate = EvidenceCandidate(
+        candidate_id="candidate-1",
+        label="claim",
+        kind="claim",
+        status=CandidateStatus.VALID,
+        span=SpanRef(document_id="doc", start_char=0, end_char=4, text="Need"),
+        provenance=["fixture"],
+        evidence_refs=["source-a"],
+    )
+
+    verdicts = CrossEncoderNliVerifier(FakeCrossEncoderContradictionModel()).verify(
+        [candidate], document_id="doc", text="Need evidence."
+    )
+
+    assert verdicts[0].status is VerificationStatus.UNSUPPORTED
+    assert verdicts[0].rationale.endswith("contradiction")
+
+
+def test_crossencoder_verifier_maps_neutral_scores() -> None:
+    candidate = EvidenceCandidate(
+        candidate_id="candidate-1",
+        label="claim",
+        kind="claim",
+        status=CandidateStatus.VALID,
+        span=SpanRef(document_id="doc", start_char=0, end_char=4, text="Need"),
+        provenance=["fixture"],
+        evidence_refs=["source-a"],
+    )
+
+    verdicts = CrossEncoderNliVerifier(FakeCrossEncoderNeutralModel()).verify(
+        [candidate], document_id="doc", text="Need evidence."
+    )
+
+    assert verdicts[0].status is VerificationStatus.INSUFFICIENT_EVIDENCE
+    assert verdicts[0].rationale.endswith("neutral")
+
+
+def test_crossencoder_verifier_rejects_empty_score_rows() -> None:
+    candidate = EvidenceCandidate(
+        candidate_id="candidate-1",
+        label="claim",
+        kind="claim",
+        status=CandidateStatus.VALID,
+        span=SpanRef(document_id="doc", start_char=0, end_char=4, text="Need"),
+        provenance=["fixture"],
+        evidence_refs=["source-a"],
+    )
+
+    with pytest.raises(ValueError, match="empty score row"):
+        CrossEncoderNliVerifier(FakeCrossEncoderEmptyRowModel()).verify(
+            [candidate], document_id="doc", text="Need evidence."
+        )
+
+
+def test_crossencoder_verifier_rejects_label_mapping_mismatch() -> None:
+    candidate = EvidenceCandidate(
+        candidate_id="candidate-1",
+        label="claim",
+        kind="claim",
+        status=CandidateStatus.VALID,
+        span=SpanRef(document_id="doc", start_char=0, end_char=4, text="Need"),
+        provenance=["fixture"],
+        evidence_refs=["source-a"],
+    )
+
+    with pytest.raises(ValueError, match="label mapping does not match score width"):
+        CrossEncoderNliVerifier(FakeCrossEncoderWideRowModel()).verify(
+            [candidate], document_id="doc", text="Need evidence."
+        )
