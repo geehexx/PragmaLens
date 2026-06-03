@@ -147,7 +147,13 @@ class FakeMiniCheckScorer:
 
 
 class FakeCrossEncoderModel:
-    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+    def predict(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        apply_softmax: bool = False,
+    ) -> list[list[float]]:
+        assert apply_softmax is True
         assert pairs == [("Need evidence.", "Need")]
         return [[0.1, 0.8, 0.1]]
 
@@ -189,25 +195,49 @@ class FakeMiniCheckWrongCountScorer:
 
 
 class FakeCrossEncoderContradictionModel:
-    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+    def predict(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        apply_softmax: bool = False,
+    ) -> list[list[float]]:
+        assert apply_softmax is True
         assert pairs == [("Need evidence.", "Need")]
         return [[0.9, 0.05, 0.05]]
 
 
 class FakeCrossEncoderNeutralModel:
-    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+    def predict(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        apply_softmax: bool = False,
+    ) -> list[list[float]]:
+        assert apply_softmax is True
         assert pairs == [("Need evidence.", "Need")]
         return [[0.1, 0.2, 0.7]]
 
 
 class FakeCrossEncoderEmptyRowModel:
-    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+    def predict(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        apply_softmax: bool = False,
+    ) -> list[list[float]]:
+        assert apply_softmax is True
         assert pairs == [("Need evidence.", "Need")]
         return [[]]
 
 
 class FakeCrossEncoderWideRowModel:
-    def predict(self, pairs: list[tuple[str, str]]) -> list[list[float]]:
+    def predict(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        apply_softmax: bool = False,
+    ) -> list[list[float]]:
+        assert apply_softmax is True
         assert pairs == [("Need evidence.", "Need")]
         return [[0.1, 0.2, 0.3, 0.4]]
 

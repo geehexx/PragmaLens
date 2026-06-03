@@ -22,6 +22,7 @@ def repo_layout(session: nox.Session) -> None:
 @nox.session
 def lint(session: nox.Session) -> None:
     """Run formatter-compatible lint checks for tracked code."""
+    _run_uv(session, "run", "python", "scripts/check_import_hygiene.py")
     _run_uv(session, "run", "ruff", "check", ".")
     _run_uv(session, "run", "ruff", "format", "--check", ".")
 

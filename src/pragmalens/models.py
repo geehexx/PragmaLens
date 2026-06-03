@@ -27,6 +27,38 @@ class VerificationStatus(StrEnum):
     VERIFIER_ERROR = "verifier_error"
 
 
+class VerificationScore(BaseModel):
+    """Normalized score payload captured from one verifier backend."""
+
+    predicted_label: str | None = None
+    support_probability: float | None = Field(default=None, ge=0.0, le=1.0)
+    contradiction_probability: float | None = Field(default=None, ge=0.0, le=1.0)
+    entailment_probability: float | None = Field(default=None, ge=0.0, le=1.0)
+    neutral_probability: float | None = Field(default=None, ge=0.0, le=1.0)
+    normalized: bool = True
+
+
+class VerifierCalibrationThresholds(BaseModel):
+    """Explicit threshold fields used to map backend scores into verdicts."""
+
+    support_probability_min: float | None = Field(default=None, ge=0.0, le=1.0)
+    support_probability_max: float | None = Field(default=None, ge=0.0, le=1.0)
+    contradiction_probability_min: float | None = Field(default=None, ge=0.0, le=1.0)
+    entailment_probability_min: float | None = Field(default=None, ge=0.0, le=1.0)
+    neutral_probability_max: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class VerifierCalibrationProfile(BaseModel):
+    """Evidence-backed threshold profile for one verifier backend."""
+
+    calibration_id: str = Field(min_length=1)
+    backend: str = Field(min_length=1)
+    evidence_source: str = Field(min_length=1)
+    sample_size: int = Field(ge=1)
+    thresholds: VerifierCalibrationThresholds = Field(default_factory=VerifierCalibrationThresholds)
+    notes: list[str] = Field(default_factory=list)
+
+
 class SpanRef(BaseModel):
     """Offset-based reference into a source document."""
 
@@ -80,7 +112,45 @@ class VerificationVerdict(BaseModel):
     status: VerificationStatus
     rationale: str = Field(min_length=1)
     evidence_ids: list[str] = Field(default_factory=list)
+    backend: str = Field(default="offline", min_length=1)
+    model_name: str | None = None
+    score: VerificationScore | None = None
+    calibration_id: str | None = None
     error: str | None = None
+
+
+class VerifierCandidateComparison(BaseModel):
+    """Per-candidate same-batch verdict comparison across verifier backends."""
+
+    candidate_id: str = Field(min_length=1)
+    selected_verdict: VerificationVerdict
+    backend_verdicts: list[VerificationVerdict] = Field(default_factory=list)
+    disagreement: bool = False
+
+
+class VerifierBatchComparison(BaseModel):
+    """Typed comparison artifact covering one candidate batch across backends."""
+
+    selected_backend: str = Field(min_length=1)
+    total_candidates: int = Field(ge=0)
+    records: list[VerifierCandidateComparison] = Field(default_factory=list)
+
+
+class VerifierCalibrationMetrics(BaseModel):
+    """Summary metrics produced while fitting a calibration profile."""
+
+    evaluated_examples: int = Field(ge=0)
+    correct: int = Field(ge=0)
+    accuracy: float = Field(ge=0.0, le=1.0)
+
+
+class VerifierCalibrationRecommendation(BaseModel):
+    """Recommended calibration profile plus the evidence that supports it."""
+
+    backend: str = Field(min_length=1)
+    model_name: str | None = None
+    calibration: VerifierCalibrationProfile
+    metrics: VerifierCalibrationMetrics
 
 
 class Finding(BaseModel):
@@ -104,6 +174,7 @@ class NeutralReport(BaseModel):
     findings: list[Finding] = Field(default_factory=list)
     candidates: list[EvidenceCandidate] = Field(default_factory=list)
     verification: list[VerificationVerdict] = Field(default_factory=list)
+    verification_comparison: VerifierBatchComparison | None = None
     warnings: list[str] = Field(default_factory=list)
 
 

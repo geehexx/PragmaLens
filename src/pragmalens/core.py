@@ -10,6 +10,7 @@ from pragmalens.pipeline.runtime import PipelineRunner, RunContext
 from pragmalens.pipeline.stage_graph import default_v01_stages, validate_stage_graph
 from pragmalens.profiles import load_profile
 from pragmalens.verifier import VerifierAdapter, build_verifier_adapter, build_verifier_from_env
+from pragmalens.verifier_comparison import VerifierComparisonHarness
 
 
 def derive_document_id(input_path: str) -> str:
@@ -27,6 +28,7 @@ def run_pipeline(
     profile_name: str = "default",
     verifier: VerifierAdapter | None = None,
     verifier_backend: str | None = None,
+    comparison_harness: VerifierComparisonHarness | None = None,
 ) -> tuple[NeutralReport, RunManifest]:
     """Execute the default v0.1 pipeline and emit traces plus contracts."""
     profile = load_profile(profile_name)
@@ -44,7 +46,10 @@ def run_pipeline(
             if verifier_backend is not None
             else build_verifier_from_env()
         )
-    stages = default_v01_stages(verifier=selected_verifier)
+    stages = default_v01_stages(
+        verifier=selected_verifier,
+        comparison_harness=comparison_harness,
+    )
     validate_stage_graph(stages)
     runner = PipelineRunner(stages)
     results = runner.run(context)

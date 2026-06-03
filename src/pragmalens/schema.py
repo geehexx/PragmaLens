@@ -12,7 +12,10 @@ from pragmalens.models import (
     NeutralReport,
     RunManifest,
     SpanRef,
+    VerificationScore,
     VerificationVerdict,
+    VerifierBatchComparison,
+    VerifierCalibrationProfile,
 )
 from pragmalens.profiles import ProfileModel
 
@@ -22,7 +25,10 @@ MODEL_MAP: dict[str, type[BaseModel]] = {
     "manifest": RunManifest,
     "profile": ProfileModel,
     "span_ref": SpanRef,
+    "verification_score": VerificationScore,
     "verification_verdict": VerificationVerdict,
+    "verifier_batch_comparison": VerifierBatchComparison,
+    "verifier_calibration_profile": VerifierCalibrationProfile,
 }
 
 

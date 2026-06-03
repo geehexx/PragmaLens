@@ -67,6 +67,11 @@ def _check_pyproject() -> None:
         fail(f"pytest marker set mismatch: expected {expected_markers}, got {marker_names}")
     ok("pytest marker set matches the current lane model")
 
+    ruff_select = data.get("tool", {}).get("ruff", {}).get("lint", {}).get("select", [])
+    if "PLC0415" not in ruff_select:
+        fail("ruff no longer enforces nested-import hygiene with PLC0415")
+    ok("ruff enforces nested-import hygiene")
+
 
 def _check_noxfile() -> None:
     nox_text = _read(NOXFILE)
@@ -81,12 +86,14 @@ def _check_noxfile() -> None:
         fail("dev-live nox session is not pinned to the live group")
     if "service-integration" in nox_text:
         fail("dead service-integration nox session still exists")
+    if "scripts/check_import_hygiene.py" not in nox_text:
+        fail("nox lint session no longer runs import hygiene")
     ok("nox sessions match the trimmed lane surface")
 
 
 def _check_lefthook() -> None:
     lefthook_text = _read(LEFTHOOK)
-    for token in ("repo-layout:", "ruff:", "format:", "nox-types:"):
+    for token in ("repo-layout:", "import-hygiene:", "ruff:", "format:", "nox-types:"):
         if token not in lefthook_text:
             fail(f"lefthook entry missing: {token}")
     for token in ("nox-offline-verify:", "nox-build:"):

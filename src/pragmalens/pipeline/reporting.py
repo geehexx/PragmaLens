@@ -38,6 +38,7 @@ def build_report_and_manifest(
         findings=context.metadata.get("findings", []),
         candidates=context.candidates,
         verification=context.metadata.get("verification", []),
+        verification_comparison=context.metadata.get("verification_comparison"),
         warnings=context.warnings,
     )
     manifest = RunManifest(
@@ -60,6 +61,10 @@ def build_report_and_manifest(
             "trace_manifest_json": str(trace_dir / "trace_manifest.json"),
         },
     )
+    if context.metadata.get("verification_comparison") is not None:
+        manifest.artifacts["verification_comparison_json"] = str(
+            trace_dir / "verification_comparison.json"
+        )
     return report, manifest
 
 
@@ -78,6 +83,9 @@ def write_traces(trace_dir: Path, context: RunContext, stage_results: list[Stage
     dump("gliner2_candidates.json", context.artifacts.get("gliner2_candidates", {}))
     dump("evidence_normalization.json", context.artifacts.get("evidence_normalizer", {}))
     dump("verification.json", context.artifacts.get("verify_claims", {}))
+    comparison = context.metadata.get("verification_comparison")
+    if comparison is not None:
+        dump("verification_comparison.json", comparison.model_dump(mode="json"))
     dump("findings.json", context.artifacts.get("synthesize_findings", {}))
     dump("report_rendering.json", context.artifacts.get("render_reports_and_traces", {}))
     dump(

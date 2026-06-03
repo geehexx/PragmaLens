@@ -8,6 +8,8 @@ pre-commit:
   commands:
     repo-layout:
       run: uv run python scripts/check_product_repo_layout.py
+    import-hygiene:
+      run: uv run python scripts/check_import_hygiene.py
     ruff:
       run: uv run ruff check .
     format:

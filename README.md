@@ -18,7 +18,7 @@ PragmaLens is a Python natural-language evidence and discourse audit engine, ali
 - `langextract_discourse` (captured fixture mode for offline CI)
 - `gliner2_candidates` (captured fixture mode for offline CI)
 - `evidence_normalizer`
-- `verify_claims` (offline baseline verdict contract)
+- `verify_claims` (selected backend verdict contract, with optional comparison artifact)
 - `synthesize_findings`
 - `render_reports_and_traces`
 
@@ -34,7 +34,7 @@ uv run pragmalens run --input /path/to/input.md --report-out out/report.json --r
 
 ## CLI
 
-- `pragmalens schema export --out <path> --model report|manifest|profile|span_ref|verification_verdict`
+- `pragmalens schema export --out <path> --model report|manifest|profile|evidence_candidate|span_ref|verification_score|verification_verdict|verifier_batch_comparison|verifier_calibration_profile`
 - `pragmalens run --input <markdown_or_txt> --report-out <path> [--report-md-out <path>] --manifest-out <path> [--trace-dir trace] [--profile default] [--verifier-backend offline|minicheck|crossencoder_nli]`
 
 ## Quality Gates
@@ -46,6 +46,7 @@ uv run nox -s repo-layout lint types offline-verify build
 
 Coverage is a real gate. The configured report must stay at or above 90%.
 Docstring coverage is also a real gate. The configured report must stay at or above 88%.
+Import hygiene is a real gate. Nested imports in product and policy code fail the lint lane.
 
 ## Hook Setup
 
@@ -87,6 +88,7 @@ gitleaks git --config .gitleaks.toml
 - Default product runs and default tests are offline and use captured fixtures for LangExtract and GLiNER2.
 - Live smoke tests are marked `live_smoke` and skipped by default.
 - Live verifier backends are optional runtime selections. The product CLI can select them explicitly with `--verifier-backend` or through `PRAGMALENS_VERIFIER`.
+- The verification stage now supports a typed same-batch comparison surface for offline baseline, MiniCheck, and CrossEncoder NLI when a comparison harness is injected programmatically. The resulting artifact lands in `trace/verification.json` and, when enabled, in `report.verification_comparison`.
 - Live smoke opt-in:
 
 ```bash

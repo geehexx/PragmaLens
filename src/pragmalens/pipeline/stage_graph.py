@@ -16,6 +16,7 @@ from pragmalens.pipeline.text import (
 )
 from pragmalens.pipeline.verification import SynthesizeFindingsStage, VerifyClaimsStage
 from pragmalens.verifier import VerifierAdapter
+from pragmalens.verifier_comparison import VerifierComparisonHarness
 
 REQUIRED_STAGE_IDS = [
     "normalize_document",
@@ -30,7 +31,11 @@ REQUIRED_STAGE_IDS = [
 ]
 
 
-def default_v01_stages(*, verifier: VerifierAdapter | None = None) -> list[PipelineStage]:
+def default_v01_stages(
+    *,
+    verifier: VerifierAdapter | None = None,
+    comparison_harness: VerifierComparisonHarness | None = None,
+) -> list[PipelineStage]:
     """Return the current full v0.1 stage graph."""
     return [
         NormalizeDocumentStage(),
@@ -39,7 +44,7 @@ def default_v01_stages(*, verifier: VerifierAdapter | None = None) -> list[Pipel
         LangExtractCapturedStage(),
         GLiNER2CapturedStage(),
         EvidenceNormalizerStage(),
-        VerifyClaimsStage(verifier=verifier),
+        VerifyClaimsStage(verifier=verifier, comparison_harness=comparison_harness),
         SynthesizeFindingsStage(),
         RenderReportsAndTracesStage(),
     ]

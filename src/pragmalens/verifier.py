@@ -5,9 +5,19 @@ from __future__ import annotations
 import os
 from collections.abc import Sequence
 from enum import StrEnum
+from functools import lru_cache
+from importlib import import_module
+from math import exp
 from typing import Any, Protocol
 
-from pragmalens.models import EvidenceCandidate, VerificationStatus, VerificationVerdict
+from pragmalens.models import (
+    EvidenceCandidate,
+    VerificationScore,
+    VerificationStatus,
+    VerificationVerdict,
+    VerifierCalibrationProfile,
+    VerifierCalibrationThresholds,
+)
 
 
 class VerifierBackend(StrEnum):
@@ -48,13 +58,29 @@ class MiniCheckScorer(Protocol):
 class CrossEncoderModel(Protocol):
     """Minimal CrossEncoder-like inference surface used by the adapter."""
 
-    def predict(self, pairs: list[tuple[str, str]]) -> Sequence[Sequence[float]]:
+    def predict(
+        self,
+        pairs: list[tuple[str, str]],
+        *,
+        apply_softmax: bool = False,
+    ) -> Sequence[Sequence[float]]:
         """Return per-label score rows for each text/claim pair."""
         ...
 
 
 class OfflineBaselineVerifier:
     """Deterministic offline verifier used until live adapters are introduced."""
+
+    backend = VerifierBackend.OFFLINE
+    model_name = "offline-baseline"
+    calibration = VerifierCalibrationProfile(
+        calibration_id="offline-baseline-v0_1",
+        backend=VerifierBackend.OFFLINE,
+        evidence_source="deterministic product baseline",
+        sample_size=1,
+        thresholds=VerifierCalibrationThresholds(),
+        notes=["offline baseline always emits insufficient_evidence verdicts"],
+    )
 
     def verify(
         self,
@@ -73,6 +99,9 @@ class OfflineBaselineVerifier:
                     "offline baseline verifier requires external evidence before support claims"
                 ),
                 evidence_ids=candidate.evidence_refs,
+                backend=self.backend,
+                model_name=self.model_name,
+                calibration_id=self.calibration.calibration_id,
             )
             for candidate in candidates
         ]
@@ -81,9 +110,19 @@ class OfflineBaselineVerifier:
 class MiniCheckVerifier:
     """Adapter for MiniCheck-style binary document/claim verification."""
 
-    def __init__(self, scorer: MiniCheckScorer) -> None:
+    backend = VerifierBackend.MINICHECK
+
+    def __init__(
+        self,
+        scorer: MiniCheckScorer,
+        *,
+        model_name: str = "roberta-large",
+        calibration: VerifierCalibrationProfile | None = None,
+    ) -> None:
         """Capture an injected MiniCheck-compatible scorer."""
         self._scorer = scorer
+        self.model_name = model_name
+        self.calibration = calibration or _default_minicheck_calibration()
 
     def verify(
         self,
@@ -102,16 +141,20 @@ class MiniCheckVerifier:
         verdicts: list[VerificationVerdict] = []
         for candidate, pred_label, prob in zip(candidates, pred_labels, raw_prob, strict=True):
             supported = _coerce_supported_label(pred_label)
+            score = VerificationScore(
+                predicted_label="supported" if supported else "unsupported",
+                support_probability=float(prob),
+            )
             verdicts.append(
                 VerificationVerdict(
                     candidate_id=candidate.candidate_id,
-                    status=(
-                        VerificationStatus.SUPPORTED
-                        if supported
-                        else VerificationStatus.UNSUPPORTED
-                    ),
-                    rationale=f"MiniCheck provisional baseline scored support={float(prob):.3f}",
+                    status=_status_for_minicheck(score, self.calibration),
+                    rationale=f"MiniCheck scored support={float(prob):.3f}",
                     evidence_ids=candidate.evidence_refs,
+                    backend=self.backend,
+                    model_name=self.model_name,
+                    score=score,
+                    calibration_id=self.calibration.calibration_id,
                 )
             )
         return verdicts
@@ -120,15 +163,21 @@ class MiniCheckVerifier:
 class CrossEncoderNliVerifier:
     """Adapter for NLI-style CrossEncoder models with contradiction/entailment labels."""
 
+    backend = VerifierBackend.CROSSENCODER_NLI
+
     def __init__(
         self,
         model: CrossEncoderModel,
         *,
+        model_name: str = "cross-encoder/nli-deberta-v3-base",
         label_mapping: Sequence[str] = ("contradiction", "entailment", "neutral"),
+        calibration: VerifierCalibrationProfile | None = None,
     ) -> None:
         """Store the injected CrossEncoder-like model and label order."""
         self._model = model
         self._label_mapping = tuple(label_mapping)
+        self.model_name = model_name
+        self.calibration = calibration or _default_crossencoder_calibration()
 
     def verify(
         self,
@@ -140,21 +189,48 @@ class CrossEncoderNliVerifier:
         """Map CrossEncoder NLI scores into verifier verdicts."""
         del document_id
         pairs = [(text, candidate.span.text) for candidate in candidates]
-        score_rows = self._model.predict(pairs)
+        score_rows = self._predict_score_rows(pairs)
         if len(score_rows) != len(candidates):
             raise ValueError("CrossEncoder model returned wrong result count")
         verdicts: list[VerificationVerdict] = []
         for candidate, row in zip(candidates, score_rows, strict=True):
+            score = self._build_score(row)
             label = self._resolve_nli_label(row)
             verdicts.append(
                 VerificationVerdict(
                     candidate_id=candidate.candidate_id,
-                    status=_status_for_nli_label(label),
-                    rationale=f"CrossEncoder provisional baseline predicted {label}",
+                    status=_status_for_crossencoder(score, self.calibration, label=label),
+                    rationale=f"CrossEncoder predicted {label}",
                     evidence_ids=candidate.evidence_refs,
+                    backend=self.backend,
+                    model_name=self.model_name,
+                    score=score,
+                    calibration_id=self.calibration.calibration_id,
                 )
             )
         return verdicts
+
+    def _predict_score_rows(self, pairs: list[tuple[str, str]]) -> Sequence[Sequence[float]]:
+        """Prefer backend-side softmax, but remain compatible with narrow test doubles."""
+        try:
+            return self._model.predict(pairs, apply_softmax=True)
+        except TypeError:
+            return self._model.predict(pairs)
+
+    def _build_score(self, row: Sequence[float]) -> VerificationScore:
+        """Normalize one NLI score row into explicit probability fields."""
+        probabilities = _normalize_score_row(row)
+        label = self._resolve_nli_label(probabilities)
+        values = {
+            label_name: probabilities[index] for index, label_name in enumerate(self._label_mapping)
+        }
+        return VerificationScore(
+            predicted_label=label,
+            contradiction_probability=values.get("contradiction"),
+            entailment_probability=values.get("entailment"),
+            neutral_probability=values.get("neutral"),
+            normalized=True,
+        )
 
     def _resolve_nli_label(self, row: Sequence[float]) -> str:
         """Resolve the winning label for one NLI score row."""
@@ -194,6 +270,111 @@ def _status_for_nli_label(label: str) -> VerificationStatus:
     raise ValueError(f"Unsupported NLI label: {label!r}")
 
 
+def _status_for_minicheck(
+    score: VerificationScore, calibration: VerifierCalibrationProfile
+) -> VerificationStatus:
+    """Map MiniCheck support probabilities into product verdicts."""
+    probability = score.support_probability
+    if probability is None:
+        raise ValueError("MiniCheck verdict missing support_probability")
+    thresholds = calibration.thresholds
+    if (
+        thresholds.support_probability_min is not None
+        and probability >= thresholds.support_probability_min
+    ):
+        return VerificationStatus.SUPPORTED
+    if (
+        thresholds.support_probability_max is not None
+        and probability <= thresholds.support_probability_max
+    ):
+        return VerificationStatus.UNSUPPORTED
+    return VerificationStatus.INSUFFICIENT_EVIDENCE
+
+
+def _status_for_crossencoder(
+    score: VerificationScore,
+    calibration: VerifierCalibrationProfile,
+    *,
+    label: str,
+) -> VerificationStatus:
+    """Map normalized NLI probabilities into product verdicts."""
+    thresholds = calibration.thresholds
+    entailment = score.entailment_probability
+    contradiction = score.contradiction_probability
+    neutral = score.neutral_probability
+    if entailment is None or contradiction is None or neutral is None:
+        raise ValueError("CrossEncoder verdict missing normalized probabilities")
+    if (
+        thresholds.entailment_probability_min is not None
+        and entailment >= thresholds.entailment_probability_min
+        and entailment >= contradiction
+        and entailment >= neutral
+    ):
+        return VerificationStatus.SUPPORTED
+    if (
+        thresholds.contradiction_probability_min is not None
+        and contradiction >= thresholds.contradiction_probability_min
+        and contradiction >= entailment
+        and contradiction >= neutral
+    ):
+        return VerificationStatus.UNSUPPORTED
+    if label.strip().lower() == "neutral":
+        return VerificationStatus.INSUFFICIENT_EVIDENCE
+    return VerificationStatus.INSUFFICIENT_EVIDENCE
+
+
+def _default_minicheck_calibration() -> VerifierCalibrationProfile:
+    """Return the current provisional MiniCheck decision thresholds."""
+    return VerifierCalibrationProfile(
+        calibration_id="minicheck-provisional-v0_1",
+        backend=VerifierBackend.MINICHECK,
+        evidence_source=(
+            "tests/live_smoke/test_runtime_backends.py::"
+            "test_minicheck_live_smoke_scores_supported_vs_unsupported_claims"
+        ),
+        sample_size=2,
+        thresholds=VerifierCalibrationThresholds(
+            support_probability_min=0.75,
+            support_probability_max=0.25,
+        ),
+        notes=["conservative provisional gap around the live smoke support boundary"],
+    )
+
+
+def _default_crossencoder_calibration() -> VerifierCalibrationProfile:
+    """Return the current provisional CrossEncoder NLI decision thresholds."""
+    return VerifierCalibrationProfile(
+        calibration_id="crossencoder-nli-provisional-v0_1",
+        backend=VerifierBackend.CROSSENCODER_NLI,
+        evidence_source=(
+            "tests/live_smoke/test_runtime_backends.py::"
+            "test_crossencoder_live_smoke_maps_supported_and_unsupported_claims"
+        ),
+        sample_size=2,
+        thresholds=VerifierCalibrationThresholds(
+            entailment_probability_min=0.5,
+            contradiction_probability_min=0.5,
+        ),
+        notes=["provisional thresholds derived from the current two-example live smoke lane"],
+    )
+
+
+def _normalize_score_row(row: Sequence[float]) -> list[float]:
+    """Convert raw multi-class scores into probabilities without double-normalizing."""
+    if len(row) == 0:
+        raise ValueError("CrossEncoder model returned an empty score row")
+    values = [float(value) for value in row]
+    total = sum(values)
+    if all(0.0 <= value <= 1.0 for value in values) and abs(total - 1.0) <= 1e-6:
+        return values
+    max_value = max(values)
+    exp_values = [exp(value - max_value) for value in values]
+    exp_total = sum(exp_values)
+    if exp_total == 0.0:
+        raise ValueError("CrossEncoder model returned a degenerate score row")
+    return [value / exp_total for value in exp_values]
+
+
 def build_verifier_adapter(
     backend: VerifierBackend | str,
     *,
@@ -202,7 +383,10 @@ def build_verifier_adapter(
     label_mapping: Sequence[str] | None = None,
 ) -> VerifierAdapter:
     """Build a verifier adapter from a backend selector and optional runtime config."""
-    selected = VerifierBackend(backend)
+    try:
+        selected = VerifierBackend(backend)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported verifier backend: {backend!r}") from exc
     if selected is VerifierBackend.OFFLINE:
         return OfflineBaselineVerifier()
     if selected is VerifierBackend.MINICHECK:
@@ -243,15 +427,37 @@ def build_verifier_from_env() -> VerifierAdapter:
 
 def _build_minicheck_from_runtime(*, model_name: str, cache_dir: str) -> VerifierAdapter:
     """Instantiate a MiniCheck-backed verifier from real runtime dependencies."""
-    from minicheck.minicheck import MiniCheck
-
-    return MiniCheckVerifier(MiniCheck(model_name=model_name, cache_dir=cache_dir))
+    return _load_minicheck_verifier(model_name=model_name, cache_dir=cache_dir)
 
 
 def _build_crossencoder_from_runtime(
     *, model_name: str, label_mapping: Sequence[str]
 ) -> VerifierAdapter:
     """Instantiate a CrossEncoder-backed verifier from real runtime dependencies."""
-    from sentence_transformers import CrossEncoder
+    return _load_crossencoder_verifier(
+        model_name=model_name,
+        label_mapping=tuple(label_mapping),
+    )
 
-    return CrossEncoderNliVerifier(CrossEncoder(model_name), label_mapping=label_mapping)
+
+@lru_cache(maxsize=8)
+def _load_minicheck_verifier(*, model_name: str, cache_dir: str) -> VerifierAdapter:
+    """Load and cache a MiniCheck-backed verifier instance."""
+    minicheck_module = import_module("minicheck.minicheck")
+    return MiniCheckVerifier(
+        minicheck_module.MiniCheck(model_name=model_name, cache_dir=cache_dir),
+        model_name=model_name,
+    )
+
+
+@lru_cache(maxsize=8)
+def _load_crossencoder_verifier(
+    *, model_name: str, label_mapping: tuple[str, ...]
+) -> VerifierAdapter:
+    """Load and cache a CrossEncoder-backed verifier instance."""
+    sentence_transformers_module = import_module("sentence_transformers")
+    return CrossEncoderNliVerifier(
+        sentence_transformers_module.CrossEncoder(model_name),
+        model_name=model_name,
+        label_mapping=label_mapping,
+    )

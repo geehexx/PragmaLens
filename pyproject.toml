@@ -72,7 +72,7 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "C90", "D"]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "C90", "D", "PLC0415"]
 ignore = []
 
 [tool.ruff.lint.pydocstyle]

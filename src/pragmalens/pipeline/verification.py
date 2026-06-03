@@ -11,6 +11,7 @@ from pragmalens.models import (
 )
 from pragmalens.pipeline.runtime import RunContext, StageResult
 from pragmalens.verifier import OfflineBaselineVerifier, VerifierAdapter
+from pragmalens.verifier_comparison import VerifierComparisonHarness
 
 
 class VerifyClaimsStage:
@@ -21,9 +22,14 @@ class VerifyClaimsStage:
     input_contract = "merged_candidates"
     output_contract = "verification_verdicts"
 
-    def __init__(self, verifier: VerifierAdapter | None = None) -> None:
+    def __init__(
+        self,
+        verifier: VerifierAdapter | None = None,
+        comparison_harness: VerifierComparisonHarness | None = None,
+    ) -> None:
         """Use the default offline adapter unless a verifier is injected."""
         self._verifier = verifier or OfflineBaselineVerifier()
+        self._comparison_harness = comparison_harness
 
     def run(self, context: RunContext) -> StageResult:
         """Populate verification verdicts without silent adapter failures."""
@@ -48,14 +54,31 @@ class VerifyClaimsStage:
             verdicts = self._fallback_error_verdicts(valid_candidates, error=str(exc))
             if valid_candidates:
                 context.warnings.append("verifier_adapter_failed")
+        comparison_payload = None
+        if self._comparison_harness is not None and valid_candidates:
+            try:
+                comparison = self._comparison_harness.compare(
+                    valid_candidates,
+                    document_id=context.document_id,
+                    text=context.text,
+                    selected_verdicts=verdicts,
+                )
+                context.metadata["verification_comparison"] = comparison
+                comparison_payload = comparison.model_dump(mode="json")
+            except Exception as exc:
+                context.warnings.append("verifier_comparison_failed")
+                comparison_payload = {"error": str(exc)}
         if skipped:
             context.warnings.extend(
                 [f"verifier_skipped_non_valid:{candidate.candidate_id}" for candidate in skipped]
             )
-        context.artifacts[self.id] = {
+        artifact: dict[str, object] = {
             "verdicts": [verdict.model_dump(mode="json") for verdict in verdicts],
             "skipped_candidates": [candidate.model_dump(mode="json") for candidate in skipped],
         }
+        if comparison_payload is not None:
+            artifact["comparison"] = comparison_payload
+        context.artifacts[self.id] = artifact
         context.metadata["verification"] = verdicts
         return StageResult(stage_id=self.id, status="ok")
 
@@ -82,6 +105,7 @@ class VerifyClaimsStage:
                 status=VerificationStatus.VERIFIER_ERROR,
                 rationale="verifier adapter failed; emitted fallback error verdict",
                 evidence_ids=candidate.evidence_refs,
+                backend="verifier_error",
                 error=error,
             )
             for candidate in candidates

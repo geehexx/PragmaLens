@@ -4,13 +4,19 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 from pydantic import ValidationError
 
+from pragmalens.models import (
+    EvidenceCandidate,
+    NeutralReport,
+    RunManifest,
+    VerificationVerdict,
+)
+from pragmalens.profiles import ProfileModel
+
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
 CONTRACT = ROOT / "schemas" / "v5" / "contract_requirements.json"
 
 
@@ -24,14 +30,6 @@ def main() -> None:
     """Compare runtime-exported schemas with the committed schema artifacts."""
     if not CONTRACT.exists():
         fail(f"missing v5 schema contract: {CONTRACT}")
-
-    from pragmalens.models import (
-        EvidenceCandidate,
-        NeutralReport,
-        RunManifest,
-        VerificationVerdict,
-    )
-    from pragmalens.profiles import ProfileModel
 
     contract = json.loads(CONTRACT.read_text(encoding="utf-8"))["models"]
     models = {

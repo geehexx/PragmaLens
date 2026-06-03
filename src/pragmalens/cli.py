@@ -18,7 +18,14 @@ app.add_typer(schema_app, name="schema")
 @schema_app.command("export")
 def schema_export(
     out: str = typer.Option(..., help="Output path for JSON schema"),
-    model: str = typer.Option("report", help="Model name: report|manifest|span_ref"),
+    model: str = typer.Option(
+        "report",
+        help=(
+            "Model name: report|manifest|profile|evidence_candidate|span_ref|"
+            "verification_score|verification_verdict|verifier_batch_comparison|"
+            "verifier_calibration_profile"
+        ),
+    ),
 ) -> None:
     """Export a JSON schema for one of the supported contract models."""
     dest = export_schema(model_name=model, out_path=out)

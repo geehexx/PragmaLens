@@ -3,11 +3,11 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
+from pragmalens.pipeline.stage_graph import default_v01_stages
+
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
 
 REQUIRED = [
     "normalize_document",
@@ -30,8 +30,6 @@ def fail(msg: str) -> None:
 
 def main() -> None:
     """Compare the runtime stage graph with the required canonical order."""
-    from pragmalens.pipeline.stage_graph import default_v01_stages
-
     actual = [stage.id for stage in default_v01_stages()]
     if actual != REQUIRED:
         fail(f"runtime v0.1 stage graph mismatch. expected={REQUIRED} actual={actual}")
