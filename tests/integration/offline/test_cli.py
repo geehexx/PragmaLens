@@ -24,6 +24,8 @@ def test_cli_run_produces_report_and_manifest(tmp_path: Path) -> None:
             str(report_out),
             "--manifest-out",
             str(manifest_out),
+            "--verifier-backend",
+            "offline",
         ],
     )
 
@@ -36,7 +38,6 @@ def test_cli_run_produces_report_and_manifest(tmp_path: Path) -> None:
 
     assert report["document_id"] == "sample"
     assert report["findings"] == []
-    assert manifest["verifier_stub"] is False
     assert "verify_claims" in manifest["stages_requested"]
 
 

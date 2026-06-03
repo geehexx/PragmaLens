@@ -28,6 +28,8 @@ def test_cli_emits_report_manifest_markdown_and_trace_with_shared_run_id(tmp_pat
             str(manifest),
             "--trace-dir",
             str(trace),
+            "--verifier-backend",
+            "offline",
         ],
     )
 

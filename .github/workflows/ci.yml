@@ -19,7 +19,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Product repo layout
-        run: uv run python scripts/check_product_repo_layout.py
+        run: uv run nox -s repo-layout
 
   lint-types:
     runs-on: ubuntu-latest
@@ -33,17 +33,8 @@ jobs:
       - name: Sync
         run: uv sync --frozen
 
-      - name: Ruff
-        run: uv run ruff check .
-
-      - name: Format check
-        run: uv run ruff format --check .
-
-      - name: Mypy
-        run: uv run mypy src/pragmalens tests
-
-      - name: Interrogate
-        run: uv run interrogate src/pragmalens
+      - name: Nox lint and types
+        run: uv run nox -s lint types
 
   offline-verify:
     runs-on: ubuntu-latest
@@ -57,32 +48,14 @@ jobs:
       - name: Sync
         run: uv sync --frozen
 
-      - name: Lock check
-        run: uv lock --check
-
-      - name: Compileall
-        run: uv run python -m compileall -q src tests
-
-      - name: Pytest with coverage
-        run: uv run coverage run -m pytest -q -m "not live_smoke"
-
-      - name: Coverage report
-        run: uv run coverage report --skip-empty
-
-      - name: Schema parity
-        run: uv run python scripts/check_schema_parity.py
-
-      - name: Stage graph
-        run: uv run python scripts/check_stage_graph.py
-
-      - name: Build wheel
-        run: uv run python -m build
+      - name: Nox offline verify and build
+        run: uv run nox -s offline-verify build
 
       - name: Import built wheel
         run: |
           tmpdir=$(mktemp -d)
-          python3 -m venv "$tmpdir/venv"
-          "$tmpdir/venv/bin/python" -m pip install --no-deps dist/*.whl
+          uv venv "$tmpdir/venv"
+          uv pip install --python "$tmpdir/venv/bin/python" --no-deps dist/*.whl
           (cd "$tmpdir" && "$tmpdir/venv/bin/python" -c "import pragmalens; print(pragmalens.__file__)")
 
   secrets:

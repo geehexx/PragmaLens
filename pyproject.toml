@@ -15,15 +15,16 @@ dependencies = [
   "click>=8.1",
   "pydantic>=2.7",
   "spacy>=3.8",
+]
+
+[project.optional-dependencies]
+live = [
   "langextract>=1.5.0",
   "gliner2>=1.3.1",
   "transformers>=5.0.0",
   "sentence-transformers>=5.0.0",
-]
-
-[project.optional-dependencies]
-models = [
   "torch>=2.0",
+  "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main",
 ]
 
 [dependency-groups]
@@ -38,6 +39,16 @@ dev = [
   "commitizen>=4.0",
   "interrogate>=1.7.0",
   "nox>=2025.11.12",
+]
+live = [
+  "langextract>=1.5.0",
+  "gliner2>=1.3.1",
+  "transformers>=5.0.0",
+  "sentence-transformers>=5.0.0",
+  "torch>=2.0",
+  "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main",
+]
+qa = [
   "pytest-docker>=3.2.0",
   "pytest-split>=0.11.0",
   "pytest-testmon>=2.1.3",
@@ -62,15 +73,22 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "C90"]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "C90", "D"]
 ignore = []
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D"]
+
 [tool.ruff.lint.mccabe]
-max-complexity = 14
+max-complexity = 12
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+docstring-code-format = true
 
 [tool.mypy]
 python_version = "3.12"
@@ -89,7 +107,7 @@ disallow_untyped_defs = false
 check_untyped_defs = false
 
 [tool.uv]
-default-groups = ["dev"]
+default-groups = ["dev", "live", "qa"]
 
 [tool.coverage.run]
 source = ["pragmalens"]
@@ -101,7 +119,7 @@ skip_empty = true
 show_missing = true
 
 [tool.interrogate]
-fail-under = 80
+fail-under = 88
 ignore-init-method = true
 ignore-init-module = true
 ignore-magic = true
@@ -119,6 +137,9 @@ major_version_zero = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pragmalens"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.sdist]
 include = [

@@ -1,3 +1,5 @@
+"""Verifier adapters and runtime builders for offline and optional live backends."""
+
 from __future__ import annotations
 
 import os
@@ -25,7 +27,9 @@ class VerifierAdapter(Protocol):
         *,
         document_id: str,
         text: str,
-    ) -> list[VerificationVerdict]: ...
+    ) -> list[VerificationVerdict]:
+        """Return one verifier verdict per candidate in the original request order."""
+        ...
 
 
 class MiniCheckScorer(Protocol):
@@ -36,13 +40,17 @@ class MiniCheckScorer(Protocol):
         *,
         docs: list[str],
         claims: list[str],
-    ) -> tuple[Sequence[Any], Sequence[Any], Any, Any]: ...
+    ) -> tuple[Sequence[Any], Sequence[Any], Any, Any]:
+        """Score one or more document/claim pairs."""
+        ...
 
 
 class CrossEncoderModel(Protocol):
     """Minimal CrossEncoder-like inference surface used by the adapter."""
 
-    def predict(self, pairs: list[tuple[str, str]]) -> Sequence[Sequence[float]]: ...
+    def predict(self, pairs: list[tuple[str, str]]) -> Sequence[Sequence[float]]:
+        """Return per-label score rows for each text/claim pair."""
+        ...
 
 
 class OfflineBaselineVerifier:

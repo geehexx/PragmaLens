@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Verify exported contract schemas stay aligned with the checked-in copies."""
+
 from __future__ import annotations
 
 import json
@@ -13,11 +15,13 @@ CONTRACT = ROOT / "schemas" / "v5" / "contract_requirements.json"
 
 
 def fail(msg: str) -> None:
+    """Exit with a failing status and a human-readable error message."""
     print(f"FAIL: {msg}")
     raise SystemExit(1)
 
 
 def main() -> None:
+    """Compare runtime-exported schemas with the committed schema artifacts."""
     if not CONTRACT.exists():
         fail(f"missing v5 schema contract: {CONTRACT}")
 

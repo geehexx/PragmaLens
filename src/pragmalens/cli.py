@@ -1,3 +1,5 @@
+"""CLI entrypoints for offline runs, schema export, and optional verifier selection."""
+
 from __future__ import annotations
 
 import json
@@ -33,6 +35,14 @@ def run(
     manifest_out: str = typer.Option(..., "--manifest-out", help="Output manifest JSON path"),
     trace_dir: str = typer.Option("trace", "--trace-dir", help="Trace artifact directory"),
     profile: str = typer.Option("default", "--profile", help="Pipeline profile name"),
+    verifier_backend: str | None = typer.Option(
+        None,
+        "--verifier-backend",
+        help=(
+            "Verifier backend: offline|minicheck|crossencoder_nli. "
+            "Defaults to PRAGMALENS_VERIFIER or offline."
+        ),
+    ),
 ) -> None:
     """Run the offline PragmaLens pipeline against one Markdown or text input."""
     src = Path(input)
@@ -49,6 +59,7 @@ def run(
         report_path=report_out,
         trace_dir=Path(trace_dir),
         profile_name=profile,
+        verifier_backend=verifier_backend,
     )
 
     report_path = Path(report_out)

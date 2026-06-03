@@ -6,12 +6,7 @@ import subprocess
 from functools import lru_cache
 from typing import Any
 
-import langextract as lx
 import pytest
-import spacy
-from gliner2 import GLiNER2
-from minicheck.minicheck import MiniCheck  # type: ignore[import-untyped]
-from spacy.language import Language
 
 from pragmalens.models import CandidateStatus, EvidenceCandidate, SpanRef, VerificationStatus
 from pragmalens.verifier import build_verifier_adapter
@@ -24,17 +19,19 @@ def _require_live_smoke_enabled() -> None:
 
 
 @lru_cache(maxsize=1)
-def _load_spacy_pipeline() -> Language:
+def _load_spacy_pipeline() -> Any:
     """Load the configured spaCy pipeline for live smoke verification."""
+    spacy = pytest.importorskip("spacy")
     model_name = os.environ.get("PRAGMALENS_SPACY_MODEL", "en_core_web_sm")
     return spacy.load(model_name)
 
 
 @lru_cache(maxsize=1)
-def _load_gliner2_model() -> GLiNER2:
+def _load_gliner2_model() -> Any:
     """Load the configured GLiNER2 model once for the live smoke lane."""
+    gliner2_module = pytest.importorskip("gliner2")
     model_name = os.environ.get("PRAGMALENS_GLINER2_MODEL", "fastino/gliner2-base-v1")
-    return GLiNER2.from_pretrained(model_name)
+    return gliner2_module.GLiNER2.from_pretrained(model_name)
 
 
 def _langextract_provider_config() -> dict[str, str]:
@@ -101,9 +98,10 @@ def _ollama_model_available(model_name: str) -> bool:
 @lru_cache(maxsize=1)
 def _load_minicheck_scorer() -> Any:
     """Load the configured MiniCheck scorer once for the live smoke lane."""
+    minicheck_module = pytest.importorskip("minicheck.minicheck")
     model_name = os.environ.get("PRAGMALENS_MINICHECK_MODEL", "roberta-large")
     cache_dir = os.environ.get("PRAGMALENS_MINICHECK_CACHE_DIR", ".local_state/minicheck-cache")
-    return MiniCheck(model_name=model_name, cache_dir=cache_dir)
+    return minicheck_module.MiniCheck(model_name=model_name, cache_dir=cache_dir)
 
 
 @pytest.mark.live_smoke
@@ -142,6 +140,7 @@ def test_gliner2_live_smoke_extracts_entities_with_spans() -> None:
 def test_langextract_live_smoke_extracts_grounded_commitment() -> None:
     _require_live_smoke_enabled()
 
+    lx = pytest.importorskip("langextract")
     config = _langextract_provider_config()
     example = lx.data.ExampleData(
         text="Alice promised to ship the report tomorrow.",

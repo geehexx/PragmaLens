@@ -1,6 +1,6 @@
 # PragmaLens v0.1
 
-PragmaLens is a Python natural-language evidence and discourse audit engine, aligned to the v5 implementation package. Current code is a v0.1 scaffold with offline fixture lanes and a conservative verifier contract.
+PragmaLens is a Python natural-language evidence and discourse audit engine, aligned to the v5 implementation package. Current code is a v0.1 scaffold with deterministic offline lanes and optional live smoke lanes for extractor and verifier runtimes.
 
 ## v0.1 Scope Constraints
 
@@ -29,31 +29,23 @@ uv venv -p python3.12 .venv
 source .venv/bin/activate
 uv sync
 uv run pragmalens schema export --out schemas/pragmalens_report.schema.json --model report
-uv run pragmalens run --input /path/to/input.md --report-out out/report.json --report-md-out out/report.md --manifest-out out/run_manifest.json
+uv run pragmalens run --input /path/to/input.md --report-out out/report.json --report-md-out out/report.md --manifest-out out/run_manifest.json --verifier-backend offline
 ```
 
 ## CLI
 
 - `pragmalens schema export --out <path> --model report|manifest|profile|span_ref|verification_verdict`
-- `pragmalens run --input <markdown_or_txt> --report-out <path> [--report-md-out <path>] --manifest-out <path> [--trace-dir trace] [--profile default]`
+- `pragmalens run --input <markdown_or_txt> --report-out <path> [--report-md-out <path>] --manifest-out <path> [--trace-dir trace] [--profile default] [--verifier-backend offline|minicheck|crossencoder_nli]`
 
 ## Quality Gates
 
 ```bash
-uv lock --check
 uv sync --frozen
-uv run python scripts/check_product_repo_layout.py
-uv run ruff check .
-uv run ruff format --check .
-uv run mypy src/pragmalens tests
-uv run interrogate src/pragmalens
-uv run coverage run -m pytest -q -m "not live_smoke"
-uv run coverage report --skip-empty
-uv run python scripts/check_schema_parity.py
-uv run python scripts/check_stage_graph.py
+uv run nox -s repo-layout lint types offline-verify build
 ```
 
 Coverage is a real gate. The configured report must stay at or above 90%.
+Docstring coverage is also a real gate. The configured report must stay at or above 88%.
 
 ## Hook Setup
 
@@ -74,7 +66,7 @@ on RTK being installed.
 
 ```bash
 uv run nox -l
-uv run nox -s lint types tests build
+uv run nox -s repo-layout lint types offline-verify build
 uv run nox -s dev-fast
 uv run nox -s dev-live
 ```
@@ -92,8 +84,9 @@ gitleaks git --config .gitleaks.toml
 
 ## Offline-first and live smoke separation
 
-- Default tests are offline and use captured fixtures for LangExtract and GLiNER2.
+- Default product runs and default tests are offline and use captured fixtures for LangExtract and GLiNER2.
 - Live smoke tests are marked `live_smoke` and skipped by default.
+- Live verifier backends are optional runtime selections. The product CLI can select them explicitly with `--verifier-backend` or through `PRAGMALENS_VERIFIER`.
 - Live smoke opt-in:
 
 ```bash
@@ -105,8 +98,9 @@ PRAGMALENS_ENABLE_LIVE_SMOKE=1 uv run pytest -q -m live_smoke
 ```bash
 uv run python -m spacy download en_core_web_sm
 uv run python -m spacy validate
-uv pip install "minicheck @ git+https://github.com/Liyan06/MiniCheck.git@main"
 ```
+
+`uv sync` installs the repo's current live/runtime dependency groups by default. The base package remains smaller than the contributor environment so wheel consumers can stay offline-first while local development keeps the real runtime lanes available.
 
 - LangExtract live smoke defaults to a local Ollama model when available.
   Current default: `qwen3.5:0.8b`

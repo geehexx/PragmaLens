@@ -1,3 +1,5 @@
+"""Schema export helpers for product contracts."""
+
 from __future__ import annotations
 
 import json

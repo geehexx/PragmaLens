@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Verify the runtime stage graph matches the declared v0.1 sequence."""
+
 from __future__ import annotations
 
 import sys
@@ -21,12 +23,14 @@ REQUIRED = [
 
 
 def fail(msg: str) -> None:
+    """Exit with a failing status and a human-readable error message."""
     print(f"FAIL: {msg}")
     raise SystemExit(1)
 
 
 def main() -> None:
-    from pragmalens.stages import default_v01_stages
+    """Compare the runtime stage graph with the required canonical order."""
+    from pragmalens.pipeline.stage_graph import default_v01_stages
 
     actual = [stage.id for stage in default_v01_stages()]
     if actual != REQUIRED:

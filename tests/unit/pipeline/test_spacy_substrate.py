@@ -1,4 +1,5 @@
-from pragmalens.stages import RunContext, SpacySubstrateStage
+from pragmalens.pipeline.runtime import RunContext
+from pragmalens.pipeline.text import SpacySubstrateStage
 
 
 def test_spacy_substrate_extracts_sentences_and_offsets() -> None:

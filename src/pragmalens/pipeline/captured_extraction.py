@@ -1,3 +1,5 @@
+"""Fixture-backed extraction pipeline helpers used by offline tests."""
+
 from __future__ import annotations
 
 import json

@@ -1,3 +1,5 @@
+"""Pydantic contracts for reports, candidates, findings, and manifests."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -115,10 +117,9 @@ class RunManifest(BaseModel):
     profile_name: str = Field(default="default")
     prompt_hash: str | None = None
     model_registry: dict[str, str] = Field(default_factory=dict)
-    stages_requested: list[str] = Field(default_factory=lambda: ["pr01_normalize"])
-    stage_health: dict[str, str] = Field(default_factory=lambda: {"pr01_normalize": "ok"})
+    stages_requested: list[str] = Field(default_factory=list)
+    stage_health: dict[str, str] = Field(default_factory=dict)
     artifacts: dict[str, str] = Field(default_factory=dict)
-    verifier_stub: bool = False
 
     @field_validator("stages_requested")
     @classmethod

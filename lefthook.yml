@@ -14,21 +14,11 @@ pre-commit:
       run: uv run ruff format --check .
 
 pre-push:
-  parallel: true
+  parallel: false
   commands:
-    lock:
-      run: uv lock --check
-    mypy:
-      run: uv run mypy src/pragmalens tests
-    interrogate:
-      run: uv run interrogate src/pragmalens
-    compileall:
-      run: uv run python -m compileall -q src tests
-    pytest:
-      run: uv run pytest -q -m "not live_smoke" --testmon
-    schema:
-      run: uv run python scripts/check_schema_parity.py
-    stage:
-      run: uv run python scripts/check_stage_graph.py
-    build:
-      run: uv run python -m build
+    nox-types:
+      run: uv run nox -s types
+    nox-offline-verify:
+      run: uv run nox -s offline-verify
+    nox-build:
+      run: uv run nox -s build

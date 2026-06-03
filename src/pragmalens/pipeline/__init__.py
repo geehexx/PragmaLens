@@ -1,1 +1,1 @@
-"""Pipeline modules for stage execution and captured extraction workflows."""
+"""Pipeline modules for stage execution, reporting, and captured extraction workflows."""

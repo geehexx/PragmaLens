@@ -7,7 +7,8 @@ from pragmalens.models import (
     VerificationStatus,
     VerificationVerdict,
 )
-from pragmalens.stages import RunContext, StageResult, VerifyClaimsStage
+from pragmalens.pipeline.runtime import RunContext, StageResult
+from pragmalens.pipeline.verification import VerifyClaimsStage
 from pragmalens.verifier import (
     CrossEncoderNliVerifier,
     MiniCheckVerifier,

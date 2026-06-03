@@ -30,3 +30,7 @@ def test_tracked_files_do_not_include_private_symlinks() -> None:
 
 def test_local_codex_bootstrap_doc_exists() -> None:
     assert Path("docs/local-codex-bootstrap.md").exists()
+
+
+def test_removed_transitional_files_are_absent() -> None:
+    assert not Path("src/pragmalens/pr04.py").exists()

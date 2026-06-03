@@ -1,3 +1,5 @@
+"""Profile loading and validation for fixture-backed pipeline runs."""
+
 from __future__ import annotations
 
 import json
