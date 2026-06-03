@@ -34,7 +34,7 @@ out/
 trace/
 visualization/
 
-# Local reports and generated agent artifacts
+# Local reports and generated operator artifacts
 local_validation_report.md
 *.local.json
 .local_state/

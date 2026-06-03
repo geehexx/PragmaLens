@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "PragmaLens v0.1: natural-language evidence and discourse audit engine bootstrap"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-license = { text = "Proprietary" }
+license = { file = "LICENSE" }
 authors = [{ name = "Andrew Crozier" }]
 dependencies = [
   "typer>=0.12",
@@ -38,6 +38,7 @@ dev = [
   "lefthook>=1.8.0",
   "commitizen>=4.0",
   "interrogate>=1.7.0",
+  "import-linter>=2.3",
   "nox>=2025.11.12",
 ]
 live = [
@@ -77,6 +78,26 @@ ignore = []
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.importlinter]
+root_packages = ["pragmalens"]
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+name = "PragmaLens layered architecture"
+type = "layers"
+layers = [
+  "pragmalens.cli",
+  "pragmalens.core",
+  "pragmalens.pipeline",
+  "pragmalens.verifier_calibration",
+  "pragmalens.verifier_comparison",
+  "pragmalens.schema",
+  "pragmalens.extraction",
+  "pragmalens.verifier",
+  "pragmalens.profiles",
+  "pragmalens.models",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["D"]

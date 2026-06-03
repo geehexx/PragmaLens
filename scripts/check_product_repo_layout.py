@@ -7,7 +7,6 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BOOTSTRAP_DOC = ROOT / "docs" / "local-codex-bootstrap.md"
 PRIVATE_PATTERNS = ["AGENTS.md", "RTK.md", ".codex", ".agents"]
 PRIVATE_REPO_NAMES = {"pragmalens-codex", ".codex", ".agents"}
 REMOVED_TRANSITIONAL_FILES = [
@@ -68,10 +67,6 @@ def main() -> None:
         fail(f"private control-plane files are still tracked: {tracked}")
     ok("private control-plane files are not tracked in the product repo")
     _assert_no_private_symlink_targets()
-
-    if not BOOTSTRAP_DOC.exists():
-        fail(f"missing local bootstrap doc: {BOOTSTRAP_DOC}")
-    ok("local Codex bootstrap doc exists")
 
     leftovers = [
         str(path.relative_to(ROOT)) for path in REMOVED_TRANSITIONAL_FILES if path.exists()

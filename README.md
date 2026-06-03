@@ -46,19 +46,14 @@ uv run nox -s repo-layout lint types offline-verify build
 
 Coverage is a real gate. The configured report must stay at or above 90%.
 Docstring coverage is also a real gate. The configured report must stay at or above 88%.
-Import hygiene is a real gate. Nested imports in product and policy code fail the lint lane.
+Import hygiene is a real gate. Ruff `PLC0415` blocks nested imports, and `lint-imports`
+keeps package boundaries explicit.
 
 ## Hook Setup
 
 ```bash
 uv run lefthook install
 ```
-
-## Local Codex Overlay
-
-Heavy Codex planning and operator-only control artifacts live outside this
-product repo. See [docs/local-codex-bootstrap.md](docs/local-codex-bootstrap.md)
-to restore the local overlay from the private sibling control repo.
 
 RTK is optional and local-only. Product commands, hooks, and CI must not depend
 on RTK being installed.
@@ -144,3 +139,7 @@ uv sync --group live --group qa
   - `PRAGMALENS_CROSSENCODER_MODEL`
 
 Live/model tests remain outside default CI. Default CI stays offline and deterministic.
+
+## License
+
+PragmaLens is released under the Apache License 2.0. See [LICENSE](LICENSE).
