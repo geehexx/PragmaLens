@@ -243,7 +243,7 @@ def build_verifier_from_env() -> VerifierAdapter:
 
 def _build_minicheck_from_runtime(*, model_name: str, cache_dir: str) -> VerifierAdapter:
     """Instantiate a MiniCheck-backed verifier from real runtime dependencies."""
-    from minicheck.minicheck import MiniCheck  # type: ignore[import-untyped]
+    from minicheck.minicheck import MiniCheck
 
     return MiniCheckVerifier(MiniCheck(model_name=model_name, cache_dir=cache_dir))
 

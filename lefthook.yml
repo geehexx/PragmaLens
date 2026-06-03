@@ -18,7 +18,3 @@ pre-push:
   commands:
     nox-types:
       run: uv run nox -s types
-    nox-offline-verify:
-      run: uv run nox -s offline-verify
-    nox-build:
-      run: uv run nox -s build

@@ -100,7 +100,33 @@ uv run python -m spacy download en_core_web_sm
 uv run python -m spacy validate
 ```
 
-`uv sync` installs the repo's current live/runtime dependency groups by default. The base package remains smaller than the contributor environment so wheel consumers can stay offline-first while local development keeps the real runtime lanes available.
+`uv sync` installs the minimal default development environment only. Live and QA tooling are opt-in so the default install stays cheap and offline-first.
+
+- Default development install:
+
+```bash
+uv sync
+```
+
+- Fast impacted-local lane:
+
+```bash
+uv sync --group qa
+uv run nox -s dev-fast
+```
+
+- Live smoke lane:
+
+```bash
+uv sync --group live
+uv run nox -s dev-live
+```
+
+- Full local development with both opt-in groups:
+
+```bash
+uv sync --group live --group qa
+```
 
 - LangExtract live smoke defaults to a local Ollama model when available.
   Current default: `qwen3.5:0.8b`

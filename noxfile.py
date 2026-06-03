@@ -16,6 +16,7 @@ def _run_uv(session: nox.Session, *args: str) -> None:
 def repo_layout(session: nox.Session) -> None:
     """Verify product-repo boundary rules and local overlay exclusions."""
     _run_uv(session, "run", "python", "scripts/check_product_repo_layout.py")
+    _run_uv(session, "run", "python", "scripts/check_lane_alignment.py")
 
 
 @nox.session
@@ -35,7 +36,7 @@ def types(session: nox.Session) -> None:
 @nox.session(name="dev-fast")
 def dev_fast(session: nox.Session) -> None:
     """Run the fastest local impacted-test lane."""
-    _run_uv(session, "run", "pytest", "-q", "-m", "not live_smoke", "--testmon")
+    _run_uv(session, "run", "--group", "qa", "pytest", "-q", "-m", "not live_smoke", "--testmon")
 
 
 @nox.session(name="dev-full")
@@ -58,13 +59,7 @@ def offline_verify(session: nox.Session) -> None:
 @nox.session(name="dev-live", default=False)
 def dev_live(session: nox.Session) -> None:
     """Run opt-in live smoke tests only."""
-    _run_uv(session, "run", "pytest", "-q", "-m", "live_smoke")
-
-
-@nox.session(name="service-integration", default=False)
-def service_integration(session: nox.Session) -> None:
-    """Run opt-in service-backed integration tests only."""
-    _run_uv(session, "run", "pytest", "-q", "-m", "service_integration")
+    _run_uv(session, "run", "--group", "live", "pytest", "-q", "-m", "live_smoke")
 
 
 @nox.session

@@ -32,3 +32,8 @@ Git exclude rules so product history stays free of operator-only artifacts.
   still work without it.
 - RTK is an optional local helper for read-only workflows only; product
   verification commands remain `uv`-driven and RTK-independent.
+- The default `uv sync` path is intentionally minimal. Use explicit opt-in
+  groups for heavier local lanes:
+  - `uv sync --group qa` for impacted/local fast feedback
+  - `uv sync --group live` for manual live smoke
+  - `uv sync --group live --group qa` when both opt-in lanes are needed

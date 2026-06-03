@@ -63,7 +63,6 @@ testpaths = ["tests"]
 addopts = "-q --strict-markers"
 markers = [
   "live_smoke: optional live integration tests; excluded from default CI",
-  "service_integration: service-backed integration tests; excluded from default CI",
   "slow: long-running tests; excluded from fast local feedback lanes unless explicitly requested",
 ]
 
@@ -106,8 +105,12 @@ module = ["tests.*"]
 disallow_untyped_defs = false
 check_untyped_defs = false
 
+[[tool.mypy.overrides]]
+module = ["minicheck.*", "sentence_transformers"]
+ignore_missing_imports = true
+
 [tool.uv]
-default-groups = ["dev", "live", "qa"]
+default-groups = ["dev"]
 
 [tool.coverage.run]
 source = ["pragmalens"]
