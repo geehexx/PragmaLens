@@ -1,0 +1,46 @@
+# Python env and caches
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+
+# Local outputs and scratch
+out/
+trace/
+visualization/
+.local_state/
+
+# Local agent overlays
+.codex
+.codex/
+.agents
+.agents/
+AGENTS.md
+RTK.md
+
+# Secrets and env
+.env
+.env.*
+
+# OS noise
+.DS_Store
+Thumbs.db

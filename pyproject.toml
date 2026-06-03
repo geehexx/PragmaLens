@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pragmalens"
+version = "0.1.0"
+description = "PragmaLens bootstrap"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Proprietary" }
+authors = [{ name = "Andrew Crozier" }]
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pragmalens"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/pragmalens",
+  "README.md",
+  "pyproject.toml",
+  ".gitignore",
+]
