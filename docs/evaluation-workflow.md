@@ -12,6 +12,9 @@ runs, and live smoke checks each answer a different question.
   by the pipeline.
 - Live smoke tests validate optional runtime backends only when the required
   local models and dependencies are installed.
+- Default CI live-verifier coverage currently exercises MiniCheck only; the
+  CrossEncoder live-smoke path remains manual because hosted model downloads
+  are not reliably reproducible on the shared runner.
 
 ## Current Baselines
 
@@ -71,4 +74,3 @@ uv run python scripts/refresh_captured_assets.py golden-set
 uv run pytest -q tests/unit/evaluation/test_benchmark.py tests/unit/evaluation/test_golden_set.py
 uv run pytest -q tests/integration/offline/test_cli.py tests/integration/offline/test_report_artifacts.py
 ```
-

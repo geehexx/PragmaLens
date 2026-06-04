@@ -102,7 +102,7 @@ gitleaks git --config .gitleaks.toml
 - Live verifier backends are optional runtime selections. The product CLI can select them explicitly with `--verifier-backend` or through `PRAGMALENS_VERIFIER`.
 - The verifier defaults to the offline baseline unless `--verifier-backend` or `PRAGMALENS_VERIFIER` selects MiniCheck or CrossEncoder NLI.
 - The verification stage now supports a typed same-batch comparison surface for offline baseline, MiniCheck, and CrossEncoder NLI when a comparison harness is injected programmatically. The resulting artifact lands in `trace/verification.json` and, when enabled, in `report.verification_comparison`.
-- Default CI runs a CPU-safe live-verifier slice for MiniCheck and CrossEncoder only; the full `live_smoke` lane remains manual.
+- Default CI runs a CPU-safe live-verifier slice for MiniCheck only; the full `live_smoke` lane, including CrossEncoder, remains manual.
 - Live smoke opt-in:
 
 ```bash
