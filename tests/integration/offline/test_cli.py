@@ -51,11 +51,14 @@ def test_cli_run_produces_report_and_manifest(tmp_path: Path) -> None:
 
 
 def test_cli_schema_export(tmp_path: Path) -> None:
-    out = tmp_path / "schemas" / "manifest.schema.json"
+    out = tmp_path / "schemas" / "settings.schema.json"
     runner = CliRunner()
-    result = runner.invoke(app, ["schema", "export", "--out", str(out), "--model", "manifest"])
+    result = runner.invoke(app, ["schema", "export", "--out", str(out), "--model", "settings"])
     assert result.exit_code == 0
     assert out.exists()
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["title"] == "PragmaLensSettings"
+    assert "spacy_model" in data["properties"]
 
 
 def test_cli_run_persists_default_signal_ensemble_comparison_payload(

@@ -34,7 +34,7 @@ uv run pragmalens run --input /path/to/input.md --report-out out/report.json --r
 
 ## CLI
 
-- `pragmalens schema export --out <path> --model report|manifest|profile|evidence_candidate|span_ref|verification_score|verification_verdict|verifier_batch_comparison|verifier_calibration_profile`
+- `pragmalens schema export --out <path> --model report|manifest|profile|settings|evidence_candidate|span_ref|verification_score|verification_verdict|verifier_batch_comparison|verifier_calibration_profile`
 - `pragmalens run --input <markdown_or_txt> --report-out <path> [--report-md-out <path>] --manifest-out <path> [--trace-dir trace] [--profile default] [--verifier-backend offline|minicheck|crossencoder_nli]`
 
 ## Quality Gates
@@ -175,6 +175,7 @@ uv sync --group live --group qa
   - `PRAGMALENS_MINICHECK_MODEL`
   - `PRAGMALENS_MINICHECK_CACHE_DIR`
   - `PRAGMALENS_CROSSENCODER_MODEL`
+- Export the typed runtime settings contract with `--model settings` when you need the resolved configuration schema.
 - The live pipeline trace now records per-stage timing in `trace/stage_timings.json`
   and an end-to-end `total_duration_ms` in `trace/trace_manifest.json` after
   report and trace emission complete.

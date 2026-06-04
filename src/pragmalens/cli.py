@@ -26,7 +26,7 @@ def schema_export(
     model: str = typer.Option(
         "report",
         help=(
-            "Model name: report|manifest|profile|evidence_candidate|span_ref|"
+            "Model name: report|manifest|profile|settings|evidence_candidate|span_ref|"
             "verification_score|verification_verdict|verifier_batch_comparison|"
             "verifier_calibration_profile"
         ),

@@ -15,6 +15,7 @@ from pragmalens.models import (
 )
 from pragmalens.profiles import ProfileModel
 from pragmalens.schema import export_schema
+from pragmalens.settings import PragmaLensSettings
 
 PUBLIC_MODELS: list[type[BaseModel]] = [
     EvidenceCandidate,
@@ -26,6 +27,7 @@ PUBLIC_MODELS: list[type[BaseModel]] = [
     VerifierBatchComparison,
     VerifierCalibrationProfile,
     ProfileModel,
+    PragmaLensSettings,
 ]
 
 
@@ -43,6 +45,15 @@ def test_schema_export_evidence_candidate_includes_evidence_refs(tmp_path: Path)
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["title"] == "EvidenceCandidate"
     assert "evidence_refs" in data["properties"]
+
+
+def test_schema_export_settings_includes_runtime_fields(tmp_path: Path) -> None:
+    out = tmp_path / "settings.schema.json"
+    path = export_schema("settings", str(out))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["title"] == "PragmaLensSettings"
+    assert "spacy_model" in data["properties"]
+    assert "verifier_backend" in data["properties"]
 
 
 def test_schema_export_invalid_model(tmp_path: Path) -> None:
