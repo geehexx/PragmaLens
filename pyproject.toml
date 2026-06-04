@@ -127,7 +127,7 @@ disallow_untyped_defs = false
 check_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["minicheck.*", "sentence_transformers"]
+module = ["gliner2", "minicheck.*", "sentence_transformers"]
 ignore_missing_imports = true
 
 [tool.uv]

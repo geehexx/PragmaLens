@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import importlib
 import os
 import shutil
 import subprocess
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -21,15 +23,31 @@ def _require_live_smoke_enabled() -> None:
 @lru_cache(maxsize=1)
 def _load_spacy_pipeline() -> Any:
     """Load the configured spaCy pipeline for live smoke verification."""
-    spacy = pytest.importorskip("spacy")
+    try:
+        spacy = importlib.import_module("spacy")
+    except ImportError as exc:
+        raise RuntimeError(
+            "Install spaCy with `uv sync --group live` before running live smoke tests."
+        ) from exc
     model_name = os.environ.get("PRAGMALENS_SPACY_MODEL", "en_core_web_sm")
+    model_path = Path(model_name)
+    if not (spacy.util.is_package(model_name) or (model_path / "config.cfg").is_file()):
+        pytest.fail(
+            "Install the spaCy model with "
+            f"`uv run python -m spacy download {model_name}` before running live smoke tests."
+        )
     return spacy.load(model_name)
 
 
 @lru_cache(maxsize=1)
 def _load_gliner2_model() -> Any:
     """Load the configured GLiNER2 model once for the live smoke lane."""
-    gliner2_module = pytest.importorskip("gliner2")
+    try:
+        gliner2_module = importlib.import_module("gliner2")
+    except ImportError as exc:
+        raise RuntimeError(
+            "Install GLiNER2 with `uv sync --group live` before running live smoke tests."
+        ) from exc
     model_name = os.environ.get("PRAGMALENS_GLINER2_MODEL", "fastino/gliner2-base-v1")
     return gliner2_module.GLiNER2.from_pretrained(model_name)
 
@@ -45,7 +63,7 @@ def _langextract_provider_config() -> dict[str, str]:
         return _ollama_langextract_config()
     if os.environ.get("LANGEXTRACT_API_KEY") or os.environ.get("GEMINI_API_KEY"):
         return _gemini_langextract_config()
-    pytest.skip(
+    pytest.fail(
         "No live LangExtract backend available. Provide an Ollama model or a working Gemini key."
     )
 
@@ -53,10 +71,10 @@ def _langextract_provider_config() -> dict[str, str]:
 def _ollama_langextract_config() -> dict[str, str]:
     """Build the local Ollama-backed LangExtract configuration."""
     if shutil.which("ollama") is None:
-        pytest.skip("Ollama is not installed; cannot run local LangExtract live smoke.")
+        pytest.fail("Ollama is not installed; cannot run local LangExtract live smoke.")
     model_name = _ollama_model_name()
     if not _ollama_model_available(model_name):
-        pytest.skip(f"Ollama model '{model_name}' is not available for LangExtract live smoke.")
+        pytest.fail(f"Ollama model '{model_name}' is not available for LangExtract live smoke.")
     return {
         "provider": "ollama",
         "model_id": model_name,
@@ -67,7 +85,7 @@ def _ollama_langextract_config() -> dict[str, str]:
 def _gemini_langextract_config() -> dict[str, str]:
     """Build the Gemini-backed LangExtract configuration."""
     if not (os.environ.get("LANGEXTRACT_API_KEY") or os.environ.get("GEMINI_API_KEY")):
-        pytest.skip(
+        pytest.fail(
             "Gemini-backed LangExtract live smoke requires LANGEXTRACT_API_KEY or GEMINI_API_KEY."
         )
     return {
@@ -98,7 +116,12 @@ def _ollama_model_available(model_name: str) -> bool:
 @lru_cache(maxsize=1)
 def _load_minicheck_scorer() -> Any:
     """Load the configured MiniCheck scorer once for the live smoke lane."""
-    minicheck_module = pytest.importorskip("minicheck.minicheck")
+    try:
+        minicheck_module = importlib.import_module("minicheck.minicheck")
+    except ImportError as exc:
+        raise RuntimeError(
+            "Install MiniCheck with `uv sync --group live` before running live smoke tests."
+        ) from exc
     model_name = os.environ.get("PRAGMALENS_MINICHECK_MODEL", "roberta-large")
     cache_dir = os.environ.get("PRAGMALENS_MINICHECK_CACHE_DIR", ".local_state/minicheck-cache")
     return minicheck_module.MiniCheck(model_name=model_name, cache_dir=cache_dir)

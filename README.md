@@ -90,6 +90,10 @@ gitleaks git --config .gitleaks.toml
 PRAGMALENS_ENABLE_LIVE_SMOKE=1 uv run pytest -q -m live_smoke
 ```
 
+The live smoke lane expects the live dependencies and local model assets to be
+installed; missing prerequisites fail the manual-live run rather than being
+silently skipped.
+
 - Local runtime bootstrap for the current live smoke lane:
 
 ```bash
