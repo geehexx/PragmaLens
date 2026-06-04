@@ -1,9 +1,32 @@
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from pragmalens.cli import app
+from pragmalens.models import EvidenceCandidate, VerificationStatus, VerificationVerdict
+
+
+class _UnsupportedVerifier:
+    def verify(
+        self,
+        candidates: list[EvidenceCandidate],
+        *,
+        document_id: str,
+        text: str,
+    ) -> list[VerificationVerdict]:
+        del document_id, text
+        return [
+            VerificationVerdict(
+                candidate_id=candidate.candidate_id,
+                status=VerificationStatus.UNSUPPORTED,
+                rationale="insufficient supporting evidence",
+                evidence_ids=candidate.evidence_refs,
+                backend="offline",
+            )
+            for candidate in candidates
+        ]
 
 
 def test_cli_emits_report_manifest_markdown_and_trace_with_shared_run_id(tmp_path: Path) -> None:
@@ -48,3 +71,46 @@ def test_cli_emits_report_manifest_markdown_and_trace_with_shared_run_id(tmp_pat
     assert (trace / "verification.json").exists()
     assert (trace / "findings.json").exists()
     assert "verification.json" in trace_manifest_payload["files"]
+
+
+def test_cli_renders_synthesized_question_and_actionability(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "sample.md"
+    report = tmp_path / "report.json"
+    report_md = tmp_path / "report.md"
+    manifest = tmp_path / "run_manifest.json"
+    trace = tmp_path / "trace"
+    source.write_text("The team should ship the verifier if evidence is present.", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "pragmalens.core.build_verifier_adapter",
+        lambda backend: _UnsupportedVerifier(),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--input",
+            str(source),
+            "--report-out",
+            str(report),
+            "--report-md-out",
+            str(report_md),
+            "--manifest-out",
+            str(manifest),
+            "--trace-dir",
+            str(trace),
+            "--verifier-backend",
+            "offline",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    report_payload = json.loads(report.read_text(encoding="utf-8"))
+    report_md_text = report_md.read_text(encoding="utf-8")
+    assert report_payload["findings"][0]["question"]
+    assert report_payload["findings"][0]["actionability"]
+    assert "Question:" in report_md_text
+    assert "Actionability:" in report_md_text

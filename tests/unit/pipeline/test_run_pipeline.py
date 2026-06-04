@@ -4,12 +4,34 @@ import json
 from pathlib import Path
 
 from pragmalens.core import run_pipeline
+from pragmalens.models import EvidenceCandidate, VerificationStatus, VerificationVerdict
 from pragmalens.pipeline.stage_graph import (
     REQUIRED_STAGE_IDS,
     default_v01_stages,
     validate_stage_graph,
 )
 from pragmalens.pipeline.text import is_valid_span
+
+
+class _UnsupportedVerifier:
+    def verify(
+        self,
+        candidates: list[EvidenceCandidate],
+        *,
+        document_id: str,
+        text: str,
+    ) -> list[VerificationVerdict]:
+        del document_id, text
+        return [
+            VerificationVerdict(
+                candidate_id=candidate.candidate_id,
+                status=VerificationStatus.UNSUPPORTED,
+                rationale="insufficient supporting evidence",
+                evidence_ids=candidate.evidence_refs,
+                backend="offline",
+            )
+            for candidate in candidates
+        ]
 
 
 def test_default_stage_graph_validates() -> None:
@@ -63,3 +85,20 @@ def test_run_pipeline_builds_default_report_shape(tmp_path: Path) -> None:
     assert payload["findings"] == []
     assert payload["candidates"]
     assert payload["warnings"] == []
+
+
+def test_run_pipeline_surfaces_question_and_actionability_for_unsupported_verdict(
+    tmp_path: Path,
+) -> None:
+    report, _ = run_pipeline(
+        text="# Doc\n\nClaim",
+        document_id="doc-123",
+        input_path="/tmp/doc.md",
+        report_path=str(tmp_path / "report.json"),
+        trace_dir=tmp_path / "trace",
+        verifier=_UnsupportedVerifier(),
+    )
+
+    payload = report.model_dump(mode="json")
+    assert payload["findings"][0]["question"]
+    assert payload["findings"][0]["actionability"]

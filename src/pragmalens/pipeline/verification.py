@@ -124,12 +124,9 @@ class SynthesizeFindingsStage:
         """Generate synthesized findings for actionable negative verdicts."""
         verdicts = context.metadata.get("verification", [])
         findings = [
-            Finding(
+            _build_finding(
                 finding_id=f"finding-{idx + 1}",
-                candidate_id=verdict.candidate_id,
-                verdict=verdict.status,
-                summary=verdict.rationale,
-                evidence_ids=verdict.evidence_ids,
+                verdict=verdict,
             )
             for idx, verdict in enumerate(verdicts)
             if verdict.status in {VerificationStatus.UNSUPPORTED, VerificationStatus.VERIFIER_ERROR}
@@ -139,3 +136,25 @@ class SynthesizeFindingsStage:
         }
         context.metadata["findings"] = findings
         return StageResult(stage_id=self.id, status="ok")
+
+
+def _build_finding(*, finding_id: str, verdict: VerificationVerdict) -> Finding:
+    """Build one synthesized finding with deterministic guidance text."""
+    if verdict.status is VerificationStatus.VERIFIER_ERROR:
+        question = "Can the verifier be rerun with the required live dependencies installed?"
+        actionability = (
+            "Fix the verifier runtime or install the missing backend before rerunning this claim."
+        )
+    else:
+        question = "What supporting evidence would let this claim be verified?"
+        actionability = "Collect corroborating evidence or revise the claim before promoting it."
+
+    return Finding(
+        finding_id=finding_id,
+        candidate_id=verdict.candidate_id,
+        verdict=verdict.status,
+        summary=verdict.rationale,
+        question=question,
+        actionability=actionability,
+        evidence_ids=verdict.evidence_ids,
+    )

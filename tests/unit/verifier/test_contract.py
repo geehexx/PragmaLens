@@ -8,7 +8,7 @@ from pragmalens.models import (
     VerificationVerdict,
 )
 from pragmalens.pipeline.runtime import RunContext, StageResult
-from pragmalens.pipeline.verification import VerifyClaimsStage
+from pragmalens.pipeline.verification import SynthesizeFindingsStage, VerifyClaimsStage
 from pragmalens.verifier import (
     CrossEncoderNliVerifier,
     MiniCheckVerifier,
@@ -294,6 +294,50 @@ def test_verifier_stage_emits_error_verdicts_on_cardinality_mismatch() -> None:
     assert context.metadata["verification"][0].status is VerificationStatus.VERIFIER_ERROR
     assert context.metadata["verification"][0].error == "verifier returned wrong verdict count"
     assert context.artifacts["verify_claims"]["verdicts"][0]["evidence_ids"] == ["source-a"]
+
+
+def test_synthesize_findings_stage_adds_questions_and_actionability() -> None:
+    context = RunContext(
+        document_id="doc",
+        input_path="doc.md",
+        text="Need evidence.",
+        metadata={
+            "verification": [
+                VerificationVerdict(
+                    candidate_id="candidate-1",
+                    status=VerificationStatus.UNSUPPORTED,
+                    rationale="verifier found insufficient support",
+                    evidence_ids=["source-a"],
+                ),
+                VerificationVerdict(
+                    candidate_id="candidate-2",
+                    status=VerificationStatus.VERIFIER_ERROR,
+                    rationale="verifier adapter failed",
+                    evidence_ids=["source-b"],
+                    error="boom",
+                ),
+            ]
+        },
+    )
+
+    result = SynthesizeFindingsStage().run(context)
+
+    assert isinstance(result, StageResult)
+    findings = context.metadata["findings"]
+    assert len(findings) == 2
+    assert findings[0].question == "What supporting evidence would let this claim be verified?"
+    assert findings[0].actionability == (
+        "Collect corroborating evidence or revise the claim before promoting it."
+    )
+    assert findings[1].question == (
+        "Can the verifier be rerun with the required live dependencies installed?"
+    )
+    assert findings[1].actionability == (
+        "Fix the verifier runtime or install the missing backend before rerunning this claim."
+    )
+    assert context.artifacts["synthesize_findings"]["findings"][0]["question"] == (
+        findings[0].question
+    )
 
 
 def test_minicheck_verifier_maps_binary_scores() -> None:

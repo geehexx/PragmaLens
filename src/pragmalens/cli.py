@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import typer
 
@@ -90,7 +91,8 @@ def run(
 
 def _render_markdown_report(payload: dict[str, object]) -> str:
     """Render a minimal Markdown summary for the generated report payload."""
-    findings = payload.get("findings", [])
+    findings_value = payload.get("findings", [])
+    findings = findings_value if isinstance(findings_value, list) else []
     lines = [
         f"# PragmaLens Report: {payload['document_id']}",
         "",
@@ -102,6 +104,25 @@ def _render_markdown_report(payload: dict[str, object]) -> str:
     ]
     if not findings:
         lines.append("No findings were produced by the current offline verifier.")
+        return "\n".join(lines) + "\n"
+
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        finding = cast(dict[str, Any], finding)
+        lines.append(
+            f"- `{finding.get('finding_id', 'finding')}` "
+            f"({finding.get('verdict', 'unknown')}): {finding.get('summary', '')}"
+        )
+        question = finding.get("question")
+        if question:
+            lines.append(f"  - Question: {question}")
+        actionability = finding.get("actionability")
+        if actionability:
+            lines.append(f"  - Actionability: {actionability}")
+        evidence_ids = finding.get("evidence_ids")
+        if isinstance(evidence_ids, list) and evidence_ids:
+            lines.append(f"  - Evidence: {', '.join(str(item) for item in evidence_ids)}")
     return "\n".join(lines) + "\n"
 
 

@@ -160,6 +160,8 @@ class Finding(BaseModel):
     candidate_id: str = Field(min_length=1)
     verdict: VerificationStatus
     summary: str = Field(min_length=1)
+    question: str | None = None
+    actionability: str | None = None
     evidence_ids: list[str] = Field(default_factory=list)
 
 
