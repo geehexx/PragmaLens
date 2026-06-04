@@ -158,6 +158,20 @@ uv sync --group live --group qa
 
 Live/model tests remain outside default CI. Default CI stays offline and deterministic.
 
+## Corpus Benchmarks
+
+Use approved corpus metadata plus a benchmark batch file to generate a calibration report:
+
+```bash
+uv run pragmalens benchmark \
+  --corpus-batch tests/fixtures/corpus_benchmark_ragtruth.json \
+  --corpus-metadata tests/fixtures/corpus_approval_ragtruth.json \
+  --report-out out/benchmark/report.json \
+  --metadata-out out/benchmark/metadata.json \
+  --summary-out out/benchmark/summary.md \
+  --selected-backend offline
+```
+
 ## License
 
 PragmaLens is released under the Apache License 2.0. See [LICENSE](LICENSE).

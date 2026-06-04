@@ -1,0 +1,11 @@
+{
+  "corpus_id": "CORPUS-CAND-001",
+  "corpus_name": "RAGTruth",
+  "corpus_version": "2024-02",
+  "source_uri": "https://github.com/ParticleMedia/RAGTruth",
+  "approval_status": "approved",
+  "approval_evidence": [
+    "public repository README and MIT license",
+    "open-access ACL paper and dataset release history"
+  ]
+}

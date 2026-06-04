@@ -182,6 +182,11 @@ class MiniCheckVerifier:
         self.model_name = model_name
         self.calibration = calibration or _default_minicheck_calibration()
 
+    @property
+    def scorer(self) -> MiniCheckScorer:
+        """Expose the injected scorer for calibration and benchmark helpers."""
+        return self._scorer
+
     def verify(
         self,
         candidates: list[EvidenceCandidate],
@@ -236,6 +241,11 @@ class CrossEncoderNliVerifier:
         self._label_mapping = tuple(label_mapping)
         self.model_name = model_name
         self.calibration = calibration or _default_crossencoder_calibration()
+
+    @property
+    def model(self) -> CrossEncoderModel:
+        """Expose the injected model for calibration and benchmark helpers."""
+        return self._model
 
     def verify(
         self,

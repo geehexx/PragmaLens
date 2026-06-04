@@ -130,3 +130,50 @@ def test_cli_run_persists_default_signal_ensemble_comparison_payload(
     assert saved_report["verification"][0]["backend"] == "signal_ensemble"
     assert saved_report["verification_comparison"]["selected_backend"] == "minicheck"
     assert "verification_comparison_json" in saved_manifest["artifacts"]
+
+
+def test_cli_benchmark_produces_calibration_report_and_sidecar(
+    tmp_path: Path,
+) -> None:
+    fixtures = Path("tests/fixtures")
+    report_out = tmp_path / "benchmark" / "report.json"
+    metadata_out = tmp_path / "benchmark" / "metadata.json"
+    summary_out = tmp_path / "benchmark" / "summary.md"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "benchmark",
+            "--corpus-batch",
+            str(fixtures / "corpus_benchmark_ragtruth.json"),
+            "--corpus-metadata",
+            str(fixtures / "corpus_approval_ragtruth.json"),
+            "--report-out",
+            str(report_out),
+            "--metadata-out",
+            str(metadata_out),
+            "--summary-out",
+            str(summary_out),
+            "--selected-backend",
+            "offline",
+            "--run-id",
+            "benchmark-run",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert report_out.exists()
+    assert metadata_out.exists()
+    assert summary_out.exists()
+
+    report = json.loads(report_out.read_text(encoding="utf-8"))
+    metadata = json.loads(metadata_out.read_text(encoding="utf-8"))
+    summary = summary_out.read_text(encoding="utf-8")
+
+    assert report["run_id"] == "benchmark-run"
+    assert {summary_entry["backend"] for summary_entry in report["summaries"]} == {"offline"}
+    assert metadata["corpus_id"] == "CORPUS-CAND-001"
+    assert metadata["selected_backend"] == "offline"
+    assert metadata["approval_status"] == "approved"
+    assert summary.startswith("# Corpus Benchmark: RAGTruth")

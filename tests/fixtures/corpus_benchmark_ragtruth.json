@@ -1,0 +1,19 @@
+{
+  "corpus_id": "CORPUS-CAND-001",
+  "cases": [
+    {
+      "case_id": "ragtruth-supported",
+      "document_id": "doc-supported",
+      "document_text": "Supported claim.",
+      "claim_text": "Supported claim.",
+      "gold_status": "supported"
+    },
+    {
+      "case_id": "ragtruth-unsupported",
+      "document_id": "doc-unsupported",
+      "document_text": "Unsupported claim.",
+      "claim_text": "Unsupported claim.",
+      "gold_status": "unsupported"
+    }
+  ]
+}

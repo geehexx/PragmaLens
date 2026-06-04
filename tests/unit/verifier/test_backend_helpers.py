@@ -11,6 +11,7 @@ from pragmalens.models import (
 )
 from pragmalens.verifier import (
     CrossEncoderNliVerifier,
+    MiniCheckVerifier,
     SignalEnsembleVerifier,
     VerifierBackend,
     _status_for_crossencoder,
@@ -41,6 +42,17 @@ class _FallbackCrossEncoderModel:
         assert pairs == [("Need evidence.", "Need")]
         assert apply_softmax is True
         return [[2.0, 5.0, 1.0]]
+
+
+class _MiniCheckScorer:
+    def score(
+        self,
+        *,
+        docs: list[str],
+        claims: list[str],
+    ) -> tuple[list[int], list[float], None, None]:
+        del docs, claims
+        return [1], [0.9], None, None
 
 
 class _StaticVerifier:
@@ -194,3 +206,13 @@ def test_build_default_verifier_runtime_keeps_offline_default_simple() -> None:
 
     assert comparison_harness is None
     assert getattr(verifier, "backend", None) is VerifierBackend.OFFLINE
+
+
+def test_live_verifier_adapters_expose_underlying_runtime_handles() -> None:
+    minicheck_scorer = _MiniCheckScorer()
+    minicheck_verifier = MiniCheckVerifier(minicheck_scorer, model_name="mini-fixture")
+    crossencoder_model = _FallbackCrossEncoderModel()
+    crossencoder_verifier = CrossEncoderNliVerifier(crossencoder_model, model_name="ce-fixture")
+
+    assert minicheck_verifier.scorer is minicheck_scorer
+    assert crossencoder_verifier.model is crossencoder_model

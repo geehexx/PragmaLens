@@ -9,6 +9,12 @@ from typing import Any, cast
 import typer
 
 from pragmalens.core import derive_document_id, run_pipeline
+from pragmalens.evaluation import (
+    load_corpus_approval_metadata,
+    load_corpus_benchmark_batch,
+    render_corpus_benchmark_summary,
+    run_corpus_benchmark,
+)
 from pragmalens.schema import export_schema
 
 app = typer.Typer(help="PragmaLens CLI")
@@ -86,6 +92,60 @@ def run(
     manifest_path.write_text(
         json.dumps(manifest.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
     )
+    typer.echo("ok")
+
+
+@app.command("benchmark")
+def benchmark(
+    corpus_batch: str = typer.Option(..., "--corpus-batch", help="Approved corpus batch JSON"),
+    corpus_metadata: str = typer.Option(
+        ..., "--corpus-metadata", help="Local corpus approval metadata JSON"
+    ),
+    report_out: str = typer.Option(..., "--report-out", help="Output calibration report JSON path"),
+    metadata_out: str = typer.Option(
+        ..., "--metadata-out", help="Output benchmark sidecar metadata JSON path"
+    ),
+    summary_out: str | None = typer.Option(
+        None, "--summary-out", help="Optional Markdown summary path"
+    ),
+    selected_backend: str = typer.Option(
+        "offline",
+        "--selected-backend",
+        help="Benchmark backend: offline|minicheck|crossencoder_nli",
+    ),
+    run_id: str | None = typer.Option(
+        None,
+        "--run-id",
+        help="Optional run identifier; defaults to corpus/backend",
+    ),
+) -> None:
+    """Run a corpus-gated benchmark and emit report plus sidecar metadata."""
+    batch = load_corpus_benchmark_batch(corpus_batch)
+    approval = load_corpus_approval_metadata(corpus_metadata)
+    report, metadata, recommendation = run_corpus_benchmark(
+        batch,
+        approval,
+        selected_backend=selected_backend,
+        run_id=run_id,
+    )
+
+    report_path = Path(report_out)
+    metadata_path = Path(metadata_out)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        json.dumps(report.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
+    )
+    metadata_path.write_text(
+        json.dumps(metadata.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
+    )
+
+    if summary_out is not None:
+        summary_path = Path(summary_out)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            render_corpus_benchmark_summary(report, metadata, recommendation), encoding="utf-8"
+        )
     typer.echo("ok")
 
 
