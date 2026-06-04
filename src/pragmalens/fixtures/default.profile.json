@@ -1,0 +1,10 @@
+{
+  "name": "default",
+  "langextract_fixture": "tests/fixtures/langextract_sample.jsonl",
+  "gliner2_fixture": "tests/fixtures/gliner2_sample.json",
+  "label_map": {
+    "agent": "commitment_owner",
+    "action": "commitment_action",
+    "condition": "condition"
+  }
+}

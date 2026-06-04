@@ -1,0 +1,20 @@
+commit-msg:
+  commands:
+    commitizen:
+      run: uv run cz check --allow-abort --commit-msg-file {1}
+
+pre-commit:
+  parallel: true
+  commands:
+    repo-layout:
+      run: uv run python scripts/check_product_repo_layout.py
+    ruff:
+      run: uv run ruff check .
+    format:
+      run: uv run ruff format --check .
+
+pre-push:
+  parallel: false
+  commands:
+    nox-types:
+      run: uv run nox -s types

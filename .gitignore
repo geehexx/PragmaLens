@@ -18,6 +18,12 @@ pip-wheel-metadata/
 htmlcov/
 coverage.xml
 
+# Hook/log/temp outputs
+.nox/
+.tox/
+*.log
+.testmondata
+
 # IDE/editor
 .vscode/
 .idea/
@@ -27,9 +33,12 @@ coverage.xml
 out/
 trace/
 visualization/
-.local_state/
 
-# Local agent overlays
+# Local reports and generated operator artifacts
+local_validation_report.md
+*.local.json
+.local_state/
+repomix-output*.*
 .codex
 .codex/
 .agents
@@ -40,6 +49,10 @@ RTK.md
 # Secrets and env
 .env
 .env.*
+
+# Model and HF caches
+.cache/
+.huggingface/
 
 # OS noise
 .DS_Store

@@ -1,0 +1,193 @@
+import json
+from pathlib import Path
+from typing import Any
+
+from pragmalens.extraction import (
+    merge_and_dedupe_candidates,
+    normalize_candidate_set,
+    normalize_gliner2_output,
+    normalize_langextract_records,
+)
+from pragmalens.pipeline.captured_extraction import run_captured_extraction_pipeline
+
+
+def test_langextract_quarantines_missing_char_interval() -> None:
+    text = "When we act"
+    records: list[dict[str, Any]] = [
+        {
+            "char_interval": [0, 4],
+            "extraction_text": "When",
+            "label": "condition",
+            "kind": "condition",
+        },
+        {"char_interval": None, "extraction_text": "x", "label": "claim", "kind": "claim"},
+    ]
+
+    valid, quarantined, _ = normalize_langextract_records(records, text)
+    assert len(valid) == 1
+    assert len(quarantined) == 1
+    assert "missing_char_interval" in quarantined[0].warnings
+
+
+def test_gliner2_relations_preserved() -> None:
+    text = "Alice signs plan"
+    payload = {
+        "entities": [
+            {"start_char": 0, "end_char": 5, "label": "agent", "kind": "entity", "confidence": 0.9},
+            {
+                "start_char": 6,
+                "end_char": 11,
+                "label": "action",
+                "kind": "claim",
+                "confidence": 0.8,
+            },
+        ],
+        "relations": [{"head": 1, "tail": 0, "label": "owned_by"}],
+    }
+    candidates = normalize_gliner2_output(payload, text)
+    assert len(candidates) == 2
+    action = next(c for c in candidates if c.label == "action")
+    assert action.relations
+
+
+def test_merge_dedupe_preserves_provenance() -> None:
+    text = "When AI acts"
+    records = [
+        {
+            "char_interval": [0, 4],
+            "extraction_text": "When",
+            "label": "condition",
+            "kind": "condition",
+        }
+    ]
+    valid, _, _ = normalize_langextract_records(records, text)
+    dup = valid[0].model_copy(deep=True)
+    dup.provenance = ["gliner2"]
+
+    merged = merge_and_dedupe_candidates([valid[0], dup])
+    assert len(merged) == 1
+    assert sorted(merged[0].provenance) == ["gliner2", "langextract"]
+    assert merged[0].attributes["merged_provenance"] == ["gliner2", "langextract"]
+
+
+def test_normalization_tracks_duplicate_candidates_and_dedupes_evidence_refs() -> None:
+    text = "When AI acts"
+    records = [
+        {
+            "char_interval": [0, 4],
+            "extraction_text": "When",
+            "label": "condition",
+            "kind": "condition",
+        }
+    ]
+    valid, _, _ = normalize_langextract_records(records, text)
+    valid[0].evidence_refs = ["ref-1", "ref-1", "ref-2"]
+    dup = valid[0].model_copy(deep=True)
+    dup.provenance = ["gliner2"]
+    dup.evidence_refs = ["ref-2", "ref-3"]
+
+    normalization = normalize_candidate_set([valid[0], dup])
+
+    assert len(normalization.candidates) == 1
+    assert len(normalization.duplicates) == 1
+    assert len(normalization.duplicate_events) == 1
+    assert normalization.duplicates[0].status == "duplicate"
+    assert normalization.duplicates[0].attributes["duplicate_of"] == valid[0].candidate_id
+    assert normalization.candidates[0].evidence_refs == ["ref-1", "ref-2", "ref-3"]
+    assert normalization.duplicate_events[0]["duplicate_of"] == valid[0].candidate_id
+    assert normalization.stats["duplicate_candidates_by_source"] == {"ref-2": 1, "ref-3": 1}
+
+
+def test_merge_dedupe_surfaces_label_conflicts_and_dedupes_relations() -> None:
+    text = "Alice signs"
+    payload = {
+        "entities": [
+            {"start_char": 0, "end_char": 5, "label": "agent", "kind": "entity", "confidence": 0.9},
+            {"start_char": 0, "end_char": 5, "label": "owner", "kind": "entity", "confidence": 0.7},
+        ],
+        "relations": [
+            {"head": 0, "tail": 0, "label": "self"},
+            {"head": 0, "tail": 0, "label": "self"},
+        ],
+    }
+    candidates = normalize_gliner2_output(payload, text)
+
+    merged = merge_and_dedupe_candidates(candidates)
+    normalization = normalize_candidate_set(candidates)
+
+    assert len(merged) == 2
+    assert max(len(candidate.relations) for candidate in merged) == 1
+    for candidate in merged:
+        assert "label_conflict" in candidate.warnings
+        assert candidate.attributes["conflicting_labels"] == ["agent", "owner"]
+    assert normalization.conflicts[0]["candidate_ids"] == ["gl-0", "gl-1"]
+    assert normalization.conflicts[0]["span"] == {
+        "document_id": "doc",
+        "start_char": 0,
+        "end_char": 5,
+    }
+    assert normalization.conflicts[0]["sources"] == ["gliner2"]
+
+
+def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
+    text = "When AI acts"
+    out = run_captured_extraction_pipeline(
+        text=text,
+        langextract_jsonl="tests/fixtures/langextract_sample.jsonl",
+        gliner2_json="tests/fixtures/gliner2_sample.json",
+        trace_dir=tmp_path / "trace",
+    )
+
+    assert out["langextract_meta"]["prompt_hash"] == "sha256:fixture-pr03-v1"
+    assert (tmp_path / "trace" / "langextract_candidates.json").exists()
+    assert (tmp_path / "trace" / "gliner2_candidates.json").exists()
+    assert (tmp_path / "trace" / "evidence_normalization.json").exists()
+    normalization_payload = json.loads(
+        (tmp_path / "trace" / "evidence_normalization.json").read_text(encoding="utf-8")
+    )
+    assert sorted(normalization_payload) == [
+        "candidates",
+        "conflicts",
+        "duplicate_events",
+        "duplicates",
+        "quarantined",
+        "stats",
+    ]
+    assert normalization_payload["stats"]["input_candidates"] == 3
+    assert normalization_payload["stats"]["valid_candidates"] == 3
+    assert normalization_payload["stats"]["quarantined_candidates"] == 1
+    assert normalization_payload["stats"]["input_candidates_by_source"] == {
+        "gliner2": 2,
+        "langextract": 1,
+    }
+
+
+def test_captured_pipeline_preserves_quarantined_gliner2_trace_details(tmp_path: Path) -> None:
+    text = "The team will ship."
+    gliner2_path = tmp_path / "gliner2.json"
+    gliner2_path.write_text(
+        json.dumps({"entities": [{"label": "agent", "end_char": 4}]}) + "\n",
+        encoding="utf-8",
+    )
+
+    out = run_captured_extraction_pipeline(
+        text=text,
+        langextract_jsonl="tests/fixtures/langextract_sample.jsonl",
+        gliner2_json=gliner2_path,
+        trace_dir=tmp_path / "trace",
+    )
+
+    gliner2_quarantined = json.loads(
+        (tmp_path / "trace" / "gliner2_quarantined.json").read_text(encoding="utf-8")
+    )
+    normalization_payload = json.loads(
+        (tmp_path / "trace" / "evidence_normalization.json").read_text(encoding="utf-8")
+    )
+
+    assert out["quarantined_candidates"]
+    assert gliner2_quarantined[0]["warnings"] == ["missing_char_interval"]
+    assert gliner2_quarantined[0]["evidence_refs"] == ["gliner2"]
+    assert any(
+        candidate["warnings"] == ["missing_char_interval"]
+        for candidate in normalization_payload["quarantined"]
+    )
