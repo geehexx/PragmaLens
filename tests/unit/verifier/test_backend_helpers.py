@@ -12,6 +12,7 @@ from pragmalens.models import (
 from pragmalens.verifier import (
     CrossEncoderNliVerifier,
     MiniCheckVerifier,
+    OfflineBaselineVerifier,
     SignalEnsembleVerifier,
     VerifierBackend,
     _status_for_crossencoder,
@@ -111,6 +112,99 @@ def test_status_helpers_reject_missing_probability_fields() -> None:
 def test_build_verifier_adapter_rejects_unknown_backend() -> None:
     with pytest.raises(ValueError, match="Unsupported verifier backend"):
         build_verifier_adapter("unknown-backend")
+
+
+def test_build_verifier_adapter_returns_offline_without_loading_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "pragmalens.verifier.load_settings",
+        lambda: (_ for _ in ()).throw(AssertionError("offline should not load settings")),
+    )
+
+    verifier = build_verifier_adapter(VerifierBackend.OFFLINE)
+
+    assert isinstance(verifier, OfflineBaselineVerifier)
+    assert getattr(verifier, "backend", None) is VerifierBackend.OFFLINE
+
+
+def test_build_verifier_adapter_uses_explicit_minicheck_overrides_without_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def _fake_build_minicheck_from_runtime(
+        *,
+        model_name: str,
+        cache_dir: str,
+    ) -> OfflineBaselineVerifier:
+        captured["model_name"] = model_name
+        captured["cache_dir"] = cache_dir
+        return OfflineBaselineVerifier()
+
+    monkeypatch.setattr(
+        "pragmalens.verifier._build_minicheck_from_runtime",
+        _fake_build_minicheck_from_runtime,
+    )
+    monkeypatch.setattr(
+        "pragmalens.verifier.load_settings",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("explicit overrides should not load settings")
+        ),
+    )
+
+    verifier = build_verifier_adapter(
+        VerifierBackend.MINICHECK,
+        model_name="mini-model",
+        cache_dir="/tmp/mini-cache",
+    )
+
+    assert isinstance(verifier, OfflineBaselineVerifier)
+    assert captured == {"model_name": "mini-model", "cache_dir": "/tmp/mini-cache"}
+
+
+def test_build_verifier_adapter_uses_explicit_crossencoder_overrides_without_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def _fake_build_crossencoder_from_runtime(
+        *,
+        model_name: str,
+        cache_dir: str,
+        revision: str,
+        label_mapping: tuple[str, ...],
+    ) -> OfflineBaselineVerifier:
+        captured["model_name"] = model_name
+        captured["cache_dir"] = cache_dir
+        captured["revision"] = revision
+        captured["label_mapping"] = ",".join(label_mapping)
+        return OfflineBaselineVerifier()
+
+    monkeypatch.setattr(
+        "pragmalens.verifier._build_crossencoder_from_runtime",
+        _fake_build_crossencoder_from_runtime,
+    )
+    monkeypatch.setattr(
+        "pragmalens.verifier.load_settings",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("explicit overrides should not load settings")
+        ),
+    )
+
+    verifier = build_verifier_adapter(
+        VerifierBackend.CROSSENCODER_NLI,
+        model_name="ce-model",
+        cache_dir="/tmp/ce-cache",
+    )
+
+    assert isinstance(verifier, OfflineBaselineVerifier)
+    assert captured == {
+        "model_name": "ce-model",
+        "cache_dir": "/tmp/ce-cache",
+        "revision": "f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5",
+        "label_mapping": "contradiction,entailment,neutral",
+    }
 
 
 def test_signal_ensemble_verifier_combines_signals_conservatively() -> None:

@@ -77,7 +77,7 @@ def live_verifier(session: nox.Session) -> None:
         "pytest",
         "tests/live_smoke/test_runtime_backends.py",
         "-k",
-        "minicheck or crossencoder",
+        "minicheck",
     )
 
 

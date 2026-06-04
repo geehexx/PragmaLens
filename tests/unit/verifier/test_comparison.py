@@ -1,6 +1,10 @@
+import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from pragmalens.models import (
     CandidateStatus,
@@ -255,3 +259,33 @@ def test_load_verifier_calibration_examples(tmp_path: Path) -> None:
 
     assert examples[0].example_id == "ex-1"
     assert examples[0].expected_status is VerificationStatus.SUPPORTED
+
+
+@given(
+    example_id=st.text(min_size=1, max_size=16),
+    document_id=st.text(min_size=1, max_size=16),
+    text=st.text(min_size=1, max_size=24),
+    claim_text=st.text(min_size=1, max_size=24),
+    expected_status=st.sampled_from(list(VerificationStatus)),
+)
+@settings(max_examples=40)
+def test_load_verifier_calibration_examples_round_trips_generated_payloads(
+    example_id: str,
+    document_id: str,
+    text: str,
+    claim_text: str,
+    expected_status: VerificationStatus,
+) -> None:
+    payload = {
+        "example_id": example_id,
+        "document_id": document_id,
+        "text": text,
+        "claim_text": claim_text,
+        "expected_status": expected_status.value,
+    }
+    with TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "examples.json"
+        path.write_text(json.dumps([payload]), encoding="utf-8")
+        examples = load_verifier_calibration_examples(path)
+
+    assert examples[0].model_dump(mode="json") == payload

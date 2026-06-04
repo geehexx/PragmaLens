@@ -9,13 +9,16 @@ from types import SimpleNamespace
 import pytest
 
 import pragmalens.live_runtime as live_runtime
+from pragmalens.settings import load_settings
 
 
 @pytest.fixture(autouse=True)
 def _clear_caches() -> None:
+    load_settings.cache_clear()
     live_runtime.load_spacy_pipeline.cache_clear()
     live_runtime.load_gliner2_model.cache_clear()
     live_runtime._ollama_model_available.cache_clear()
+    live_runtime.load_crossencoder_model.cache_clear()
 
 
 def test_load_spacy_pipeline_uses_package_model(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -105,6 +108,49 @@ def test_load_minicheck_scorer_requires_install(monkeypatch: pytest.MonkeyPatch)
         live_runtime.load_minicheck_scorer()
 
 
+def test_load_crossencoder_model_loads_configured_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentence_transformers = SimpleNamespace(
+        CrossEncoder=lambda model_name, *, cache_folder, revision: (
+            model_name,
+            cache_folder,
+            revision,
+        )
+    )
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        lambda name: sentence_transformers if name == "sentence_transformers" else None,
+    )
+    monkeypatch.setenv("PRAGMALENS_CROSSENCODER_MODEL", "ce-model")
+    monkeypatch.setenv("PRAGMALENS_CROSSENCODER_CACHE_DIR", "/tmp/ce-cache")
+    monkeypatch.setenv("PRAGMALENS_CROSSENCODER_REVISION", "ce-revision")
+
+    assert live_runtime.load_crossencoder_model() == (
+        "ce-model",
+        "/tmp/ce-cache",
+        "ce-revision",
+    )
+
+
+def test_load_crossencoder_model_requires_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        lambda name: (
+            (_ for _ in ()).throw(ImportError("missing"))
+            if name == "sentence_transformers"
+            else None
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Install Sentence Transformers"):
+        live_runtime.load_crossencoder_model()
+
+
 def test_langextract_provider_config_covers_all_branches(monkeypatch: pytest.MonkeyPatch) -> None:
     def _ollama_available(model_name: str) -> bool:
         return model_name == "ollama-model"
@@ -115,20 +161,25 @@ def test_langextract_provider_config_covers_all_branches(monkeypatch: pytest.Mon
     monkeypatch.setattr(live_runtime, "_ollama_model_available", _ollama_available)
 
     monkeypatch.setenv("PRAGMALENS_LANGEXTRACT_PROVIDER", "ollama")
+    load_settings.cache_clear()
     assert live_runtime.langextract_provider_config() == {"provider": "ollama"}
 
     monkeypatch.setenv("PRAGMALENS_LANGEXTRACT_PROVIDER", "gemini")
+    load_settings.cache_clear()
     assert live_runtime.langextract_provider_config() == {"provider": "gemini"}
 
     monkeypatch.delenv("PRAGMALENS_LANGEXTRACT_PROVIDER", raising=False)
+    load_settings.cache_clear()
     assert live_runtime.langextract_provider_config() == {"provider": "ollama"}
 
     monkeypatch.setattr(live_runtime, "_ollama_model_available", lambda _: False)
     monkeypatch.setenv("LANGEXTRACT_API_KEY", "key")
+    load_settings.cache_clear()
     assert live_runtime.langextract_provider_config() == {"provider": "gemini"}
 
     monkeypatch.delenv("LANGEXTRACT_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    load_settings.cache_clear()
     with pytest.raises(RuntimeError, match="No live LangExtract backend available"):
         live_runtime.langextract_provider_config()
 
@@ -178,6 +229,7 @@ def test_gemini_langextract_config_requires_api_key(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setenv("PRAGMALENS_LANGEXTRACT_MODEL", "gemini-test")
     monkeypatch.setenv("LANGEXTRACT_API_KEY", "key")
+    load_settings.cache_clear()
     assert live_runtime._gemini_langextract_config() == {
         "provider": "gemini",
         "model_id": "gemini-test",

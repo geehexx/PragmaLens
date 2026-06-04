@@ -34,7 +34,7 @@ uv run pragmalens run --input /path/to/input.md --report-out out/report.json --r
 
 ## CLI
 
-- `pragmalens schema export --out <path> --model report|manifest|profile|evidence_candidate|span_ref|verification_score|verification_verdict|verifier_batch_comparison|verifier_calibration_profile`
+- `pragmalens schema export --out <path> --model report|manifest|profile|settings|evidence_candidate|span_ref|verification_score|verification_verdict|verifier_batch_comparison|verifier_calibration_profile`
 - `pragmalens run --input <markdown_or_txt> --report-out <path> [--report-md-out <path>] --manifest-out <path> [--trace-dir trace] [--profile default] [--verifier-backend offline|minicheck|crossencoder_nli]`
 
 ## Quality Gates
@@ -102,7 +102,7 @@ gitleaks git --config .gitleaks.toml
 - Live verifier backends are optional runtime selections. The product CLI can select them explicitly with `--verifier-backend` or through `PRAGMALENS_VERIFIER`.
 - The verifier defaults to the offline baseline unless `--verifier-backend` or `PRAGMALENS_VERIFIER` selects MiniCheck or CrossEncoder NLI.
 - The verification stage now supports a typed same-batch comparison surface for offline baseline, MiniCheck, and CrossEncoder NLI when a comparison harness is injected programmatically. The resulting artifact lands in `trace/verification.json` and, when enabled, in `report.verification_comparison`.
-- Default CI runs a CPU-safe live-verifier slice for MiniCheck and CrossEncoder only; the full `live_smoke` lane remains manual.
+- Default CI runs a CPU-safe live-verifier slice for MiniCheck only; the full `live_smoke` lane keeps CrossEncoder manual, but the model load is now pinned and cache-backed.
 - Live smoke opt-in:
 
 ```bash
@@ -175,14 +175,22 @@ uv sync --group live --group qa
   - `PRAGMALENS_MINICHECK_MODEL`
   - `PRAGMALENS_MINICHECK_CACHE_DIR`
   - `PRAGMALENS_CROSSENCODER_MODEL`
+  - `PRAGMALENS_CROSSENCODER_CACHE_DIR`
+  - `PRAGMALENS_CROSSENCODER_REVISION`
+- Export the typed runtime settings contract with `--model settings` when you need the resolved configuration schema.
 - The live pipeline trace now records per-stage timing in `trace/stage_timings.json`
   and an end-to-end `total_duration_ms` in `trace/trace_manifest.json` after
   report and trace emission complete.
 
-GLiNER2 and MiniCheck download weights on first use. MiniCheck caches under
-`PRAGMALENS_MINICHECK_CACHE_DIR` when set, otherwise `.local_state/minicheck-cache`.
+GLiNER2, MiniCheck, and CrossEncoder download weights on first use. MiniCheck
+caches under `PRAGMALENS_MINICHECK_CACHE_DIR` when set, otherwise
+`.local_state/minicheck-cache`. CrossEncoder caches under
+`PRAGMALENS_CROSSENCODER_CACHE_DIR` when set, otherwise
+`.local_state/crossencoder-cache`, and loads the pinned revision
+`f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5` unless overridden for a local
+experiment.
 
-Default CI stays offline for the core lanes and also includes a bounded CPU-safe live-verifier slice for MiniCheck and CrossEncoder.
+Default CI stays offline for the core lanes and also includes a bounded CPU-safe live-verifier slice for MiniCheck only.
 
 ## Corpus Benchmarks
 
@@ -201,6 +209,15 @@ uv run pragmalens benchmark \
 The pipeline trace emitted by `pragmalens run` now includes stage timing
 metadata alongside the normal JSON trace files, so duration regressions can be
 compared across runs.
+
+For the current evaluation workflow, corpus baselines, and research notes, see
+[docs/evaluation-workflow.md](docs/evaluation-workflow.md).
+
+For the current evaluation outcomes and the latest operational summary, see
+[docs/evaluation-results.md](docs/evaluation-results.md).
+
+For the current extraction tuning plan and manual verification matrix, see
+[docs/extraction-tuning-plan.md](docs/extraction-tuning-plan.md).
 
 ## Semantic Golden Set
 

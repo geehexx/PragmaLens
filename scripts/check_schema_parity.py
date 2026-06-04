@@ -16,6 +16,7 @@ from pragmalens.models import (
     VerificationVerdict,
 )
 from pragmalens.profiles import ProfileModel
+from pragmalens.settings import PragmaLensSettings
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "schemas" / "v5" / "contract_requirements.json"
@@ -38,6 +39,7 @@ def main() -> None:
         "report": NeutralReport,
         "manifest": RunManifest,
         "profile": ProfileModel,
+        "settings": PragmaLensSettings,
         "verification_verdict": VerificationVerdict,
     }
     for name, model in models.items():
@@ -89,6 +91,7 @@ def main() -> None:
                 "condition": "condition",
             },
         },
+        "settings": {},
         "verification_verdict": {
             "candidate_id": "candidate-1",
             "status": "insufficient_evidence",

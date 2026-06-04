@@ -18,12 +18,14 @@ from pragmalens.models import (
     VerifierCalibrationProfile,
 )
 from pragmalens.profiles import ProfileModel
+from pragmalens.settings import PragmaLensSettings
 
 MODEL_MAP: dict[str, type[BaseModel]] = {
     "evidence_candidate": EvidenceCandidate,
     "report": NeutralReport,
     "manifest": RunManifest,
     "profile": ProfileModel,
+    "settings": PragmaLensSettings,
     "span_ref": SpanRef,
     "verification_score": VerificationScore,
     "verification_verdict": VerificationVerdict,

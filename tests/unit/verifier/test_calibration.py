@@ -1,5 +1,9 @@
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from pragmalens.models import VerificationStatus
 from pragmalens.verifier import OfflineBaselineVerifier
@@ -82,6 +86,36 @@ def test_load_verifier_calibration_cases(tmp_path: Path) -> None:
     assert cases[0].gold_status is VerificationStatus.SUPPORTED
 
 
+@given(
+    case_id=st.text(min_size=1, max_size=16),
+    document_id=st.text(min_size=1, max_size=16),
+    document_text=st.text(min_size=1, max_size=24),
+    claim_text=st.text(min_size=1, max_size=24),
+    gold_status=st.sampled_from(list(VerificationStatus)),
+)
+@settings(max_examples=40)
+def test_load_verifier_calibration_cases_round_trips_generated_payloads(
+    case_id: str,
+    document_id: str,
+    document_text: str,
+    claim_text: str,
+    gold_status: VerificationStatus,
+) -> None:
+    payload = {
+        "case_id": case_id,
+        "document_id": document_id,
+        "document_text": document_text,
+        "claim_text": claim_text,
+        "gold_status": gold_status.value,
+    }
+    with TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "cases.json"
+        path.write_text(json.dumps([payload]), encoding="utf-8")
+        cases = load_verifier_calibration_cases(path)
+
+    assert cases[0].model_dump(mode="json") == payload
+
+
 def test_compare_verifier_backends_returns_summary_for_each_backend() -> None:
     report = compare_verifier_backends(
         _cases(),
@@ -111,6 +145,36 @@ def test_compare_verifier_backends_returns_summary_for_each_backend() -> None:
     assert report.summaries[1].recommended_support_threshold is not None
     assert report.summaries[2].recommended_support_threshold is not None
     assert report.summaries[1].exact_match_rate == 1.0
+
+
+@given(
+    gold_statuses=st.lists(
+        st.sampled_from([VerificationStatus.SUPPORTED, VerificationStatus.UNSUPPORTED]),
+        min_size=1,
+        max_size=4,
+    )
+)
+@settings(max_examples=30)
+def test_compare_verifier_backends_preserves_offline_only_batches(
+    gold_statuses: list[VerificationStatus],
+) -> None:
+    cases = [
+        VerifierCalibrationCase(
+            case_id=f"case-{index}",
+            document_id=f"doc-{index}",
+            document_text=f"document {index}",
+            claim_text=f"claim {index}",
+            gold_status=status,
+        )
+        for index, status in enumerate(gold_statuses)
+    ]
+
+    report = compare_verifier_backends(cases, run_id="offline-only")
+
+    assert report.run_id == "offline-only"
+    assert report.cases == cases
+    assert len(report.observations) == len(cases)
+    assert {summary.backend for summary in report.summaries} == {"offline"}
 
 
 def test_compare_verifier_backends_can_use_only_offline_backend() -> None:

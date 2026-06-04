@@ -33,6 +33,7 @@ dev = [
   "pytest-cov>=5.0",
   "coverage[toml]>=7.6",
   "build>=1.2",
+  "hypothesis>=6.155.0",
   "ruff>=0.6.0",
   "mypy>=1.11.0",
   "lefthook>=1.8.0",

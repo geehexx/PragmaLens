@@ -31,6 +31,9 @@
         "label_map"
       ]
     },
+    "settings": {
+      "required_fields": []
+    },
     "report": {
       "required_fields": [
         "run_id",

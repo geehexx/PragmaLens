@@ -1,4 +1,8 @@
+from typing import cast
+
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from pragmalens.extraction import normalize_gliner2_output, normalize_gliner2_output_with_quarantine
 from pragmalens.profiles import ProfileModel
@@ -90,6 +94,35 @@ def test_gliner2_live_captured_payload_flattens_label_groups() -> None:
     ]
 
 
+@st.composite
+def _valid_gliner2_payload(draw):
+    text = draw(st.text(min_size=1, max_size=20))
+    start = draw(st.integers(min_value=0, max_value=len(text) - 1))
+    end = draw(st.integers(min_value=start + 1, max_value=len(text)))
+    confidence = draw(
+        st.floats(
+            min_value=0.5,
+            max_value=1.0,
+            allow_nan=False,
+            allow_infinity=False,
+        )
+    )
+    return (
+        {
+            "entities": [
+                {
+                    "text": text[start:end],
+                    "label": "agent",
+                    "start_char": start,
+                    "end_char": end,
+                    "confidence": confidence,
+                }
+            ]
+        },
+        text,
+    )
+
+
 @pytest.mark.parametrize(
     ("entity", "warning"),
     [
@@ -108,3 +141,26 @@ def test_gliner2_malformed_entities_are_quarantined(entity: object, warning: str
     assert normalized.valid == []
     assert len(normalized.quarantined) == 1
     assert normalized.quarantined[0].warnings == [warning]
+
+
+@given(payload_and_text=_valid_gliner2_payload())
+@settings(max_examples=40)
+def test_gliner2_valid_payload_round_trips_span_and_label_map(
+    payload_and_text: tuple[dict[str, object], str],
+) -> None:
+    payload, text = payload_and_text
+    entities = cast(list[dict[str, object]], payload["entities"])
+    entity = entities[0]
+
+    candidates = normalize_gliner2_output(
+        payload,
+        text,
+        document_id="doc",
+        label_map={"agent": "commitment_owner"},
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].label == "commitment_owner"
+    assert candidates[0].span.text == cast(str, entity["text"])
+    assert candidates[0].span.start_char == cast(int, entity["start_char"])
+    assert candidates[0].span.end_char == cast(int, entity["end_char"])
