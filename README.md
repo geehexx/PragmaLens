@@ -183,7 +183,7 @@ uv sync --group live --group qa
 GLiNER2 and MiniCheck download weights on first use. MiniCheck caches under
 `PRAGMALENS_MINICHECK_CACHE_DIR` when set, otherwise `.local_state/minicheck-cache`.
 
-Default CI stays offline for the core lanes and also includes a bounded CPU-safe live-verifier slice for MiniCheck and CrossEncoder.
+Default CI stays offline for the core lanes and also includes a bounded CPU-safe live-verifier slice for MiniCheck only.
 
 ## Corpus Benchmarks
 
