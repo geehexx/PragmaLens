@@ -148,23 +148,15 @@ def test_compare_verifier_backends_returns_summary_for_each_backend() -> None:
 
 
 @given(
-    status_pairs=st.lists(
-        st.tuples(
-            st.sampled_from([VerificationStatus.SUPPORTED, VerificationStatus.UNSUPPORTED]),
-            st.floats(
-                min_value=0.0,
-                max_value=1.0,
-                allow_nan=False,
-                allow_infinity=False,
-            ),
-        ),
+    gold_statuses=st.lists(
+        st.sampled_from([VerificationStatus.SUPPORTED, VerificationStatus.UNSUPPORTED]),
         min_size=1,
         max_size=4,
     )
 )
 @settings(max_examples=30)
 def test_compare_verifier_backends_preserves_offline_only_batches(
-    status_pairs: list[tuple[VerificationStatus, float]],
+    gold_statuses: list[VerificationStatus],
 ) -> None:
     cases = [
         VerifierCalibrationCase(
@@ -174,7 +166,7 @@ def test_compare_verifier_backends_preserves_offline_only_batches(
             claim_text=f"claim {index}",
             gold_status=status,
         )
-        for index, (status, _score) in enumerate(status_pairs)
+        for index, status in enumerate(gold_statuses)
     ]
 
     report = compare_verifier_backends(cases, run_id="offline-only")
