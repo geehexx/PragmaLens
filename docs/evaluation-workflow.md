@@ -25,6 +25,9 @@ runs, and live smoke checks each answer a different question.
 - Stage timing traces are emitted in `trace/stage_timings.json` and the total
   runtime is recorded in `trace/trace_manifest.json`.
 
+For current outcomes and the latest operational summary, see
+[docs/evaluation-results.md](evaluation-results.md).
+
 These baselines are intentionally small so that they stay reviewable and can be
 used as durable regression gates rather than as a substitute for large-scale
 model evaluation.

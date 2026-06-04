@@ -206,6 +206,9 @@ compared across runs.
 For the current evaluation workflow, corpus baselines, and research notes, see
 [docs/evaluation-workflow.md](docs/evaluation-workflow.md).
 
+For the current evaluation outcomes and the latest operational summary, see
+[docs/evaluation-results.md](docs/evaluation-results.md).
+
 ## Semantic Golden Set
 
 Use the internal golden set to keep promise/review/antecedent ambiguity explicit:
