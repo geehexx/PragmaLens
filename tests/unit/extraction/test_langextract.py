@@ -5,7 +5,9 @@ import pytest
 from pragmalens.extraction import normalize_langextract_records
 
 
-def _record(*, interval, text: str, label: str = "claim", kind: str = "claim") -> dict[str, object]:
+def _record(
+    *, interval: tuple[int, int], text: str, label: str = "claim", kind: str = "claim"
+) -> dict[str, object]:
     return {
         "char_interval": interval,
         "extraction_text": text,
@@ -32,7 +34,9 @@ def _record(*, interval, text: str, label: str = "claim", kind: str = "claim") -
             {"provider": "captured", "model": "captured"},
         ),
         (
-            [_record(interval=(0, 4), text="good"),],
+            [
+                _record(interval=(0, 4), text="good"),
+            ],
             "good text",
             1,
             [],
