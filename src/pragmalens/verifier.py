@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Sequence
 from enum import StrEnum
 from functools import lru_cache
@@ -18,6 +17,7 @@ from pragmalens.models import (
     VerifierCalibrationProfile,
     VerifierCalibrationThresholds,
 )
+from pragmalens.settings import load_settings
 
 if TYPE_CHECKING:
     from pragmalens.verifier_comparison import VerifierComparisonHarness
@@ -500,16 +500,17 @@ def build_verifier_adapter(
         selected = VerifierBackend(backend)
     except ValueError as exc:
         raise ValueError(f"Unsupported verifier backend: {backend!r}") from exc
+    settings = load_settings()
     if selected is VerifierBackend.OFFLINE:
         return OfflineBaselineVerifier()
     if selected is VerifierBackend.MINICHECK:
         return _build_minicheck_from_runtime(
-            model_name=model_name or "roberta-large",
-            cache_dir=cache_dir or ".local_state/minicheck-cache",
+            model_name=model_name or settings.minicheck_model,
+            cache_dir=cache_dir or str(settings.minicheck_cache_dir),
         )
     if selected is VerifierBackend.CROSSENCODER_NLI:
         return _build_crossencoder_from_runtime(
-            model_name=model_name or "cross-encoder/nli-deberta-v3-base",
+            model_name=model_name or settings.crossencoder_model,
             label_mapping=label_mapping or ("contradiction", "entailment", "neutral"),
         )
     raise ValueError(f"Unsupported verifier backend: {backend!r}")
@@ -524,12 +525,7 @@ def build_default_verifier_runtime(
         return OfflineBaselineVerifier(), None
 
     offline = OfflineBaselineVerifier()
-    live = build_verifier_adapter(
-        selected,
-        model_name=_selected_model_name(selected),
-        cache_dir=_selected_cache_dir(selected),
-        label_mapping=_selected_label_mapping(selected),
-    )
+    live = build_verifier_adapter(selected)
     verifiers = [offline, live]
     comparison_module = import_module("pragmalens.verifier_comparison")
     return (
@@ -543,20 +539,7 @@ def build_default_verifier_runtime(
 
 def build_verifier_from_env() -> VerifierAdapter:
     """Build a verifier adapter from environment configuration."""
-    backend = _resolve_backend_selector(None)
-    if backend == VerifierBackend.MINICHECK:
-        return build_verifier_adapter(
-            backend,
-            model_name=_selected_model_name(backend),
-            cache_dir=_selected_cache_dir(backend),
-        )
-    if backend == VerifierBackend.CROSSENCODER_NLI:
-        return build_verifier_adapter(
-            backend,
-            model_name=_selected_model_name(backend),
-            label_mapping=_selected_label_mapping(backend),
-        )
-    return build_verifier_adapter(VerifierBackend.OFFLINE)
+    return build_verifier_adapter(_resolve_backend_selector(None))
 
 
 def _build_minicheck_from_runtime(*, model_name: str, cache_dir: str) -> VerifierAdapter:
@@ -599,41 +582,11 @@ def _load_crossencoder_verifier(
 
 def _resolve_backend_selector(backend: VerifierBackend | str | None) -> VerifierBackend:
     """Resolve an explicit backend selector or the default environment selector."""
-    raw_backend = (
-        backend
-        if backend is not None
-        else os.environ.get("PRAGMALENS_VERIFIER", VerifierBackend.OFFLINE)
-    )
+    raw_backend = backend if backend is not None else load_settings().verifier_backend
     try:
         return VerifierBackend(raw_backend)
     except ValueError as exc:
         raise ValueError(f"Unsupported verifier backend: {raw_backend!r}") from exc
-
-
-def _selected_model_name(backend: VerifierBackend) -> str | None:
-    """Return the backend-specific model override for runtime construction."""
-    if backend is VerifierBackend.MINICHECK:
-        return os.environ.get("PRAGMALENS_MINICHECK_MODEL", "roberta-large")
-    if backend is VerifierBackend.CROSSENCODER_NLI:
-        return os.environ.get(
-            "PRAGMALENS_CROSSENCODER_MODEL",
-            "cross-encoder/nli-deberta-v3-base",
-        )
-    return None
-
-
-def _selected_cache_dir(backend: VerifierBackend) -> str | None:
-    """Return the backend-specific cache override for runtime construction."""
-    if backend is VerifierBackend.MINICHECK:
-        return os.environ.get("PRAGMALENS_MINICHECK_CACHE_DIR", ".local_state/minicheck-cache")
-    return None
-
-
-def _selected_label_mapping(backend: VerifierBackend) -> Sequence[str] | None:
-    """Return the backend-specific label mapping override for runtime construction."""
-    if backend is VerifierBackend.CROSSENCODER_NLI:
-        return ("contradiction", "entailment", "neutral")
-    return None
 
 
 def _merge_verification_statuses(statuses: Sequence[VerificationStatus]) -> VerificationStatus:
