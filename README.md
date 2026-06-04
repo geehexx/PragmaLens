@@ -44,6 +44,13 @@ uv sync --frozen
 uv run nox -s repo-layout lint types offline-verify build
 ```
 
+## Pull Requests
+
+Use [`.github/pull_request_template.md`](.github/pull_request_template.md) for new
+PRs. Keep the body scoped to the branch diff, list the exact verification
+commands you ran, and summarize any automated-review feedback from CodeRabbit,
+GitHub Copilot, or Qodo when available.
+
 Coverage is a real gate. The configured report must stay at or above 90%.
 Docstring coverage is also a real gate. The configured report must stay at or above 88%.
 Import hygiene is a real gate. Ruff `PLC0415` blocks nested imports, and `lint-imports`
