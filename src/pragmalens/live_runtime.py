@@ -78,6 +78,36 @@ def load_minicheck_scorer() -> Any:
     )
 
 
+@lru_cache(maxsize=1)
+def load_crossencoder_model(
+    model_name: str | None = None,
+    *,
+    cache_dir: str | Path | None = None,
+    revision: str | None = None,
+) -> Any:
+    """Load the configured CrossEncoder model once for live smoke and calibration."""
+    if model_name is None or cache_dir is None or revision is None:
+        settings = load_settings()
+        model_name = model_name or settings.crossencoder_model
+        cache_dir = cache_dir or settings.crossencoder_cache_dir
+        revision = revision or settings.crossencoder_revision
+    try:
+        sentence_transformers = importlib.import_module("sentence_transformers")
+    except ImportError as exc:
+        raise RuntimeError(
+            "Install Sentence Transformers with `uv sync --group live` "
+            "before running live smoke tests."
+        ) from exc
+    assert model_name is not None
+    assert cache_dir is not None
+    assert revision is not None
+    return sentence_transformers.CrossEncoder(
+        model_name,
+        cache_folder=str(cache_dir),
+        revision=revision,
+    )
+
+
 def _ollama_langextract_config() -> dict[str, str]:
     """Build the local Ollama-backed LangExtract configuration."""
     settings = load_settings()

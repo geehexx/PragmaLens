@@ -59,6 +59,8 @@ def test_cli_schema_export(tmp_path: Path) -> None:
     data = json.loads(out.read_text(encoding="utf-8"))
     assert data["title"] == "PragmaLensSettings"
     assert "spacy_model" in data["properties"]
+    assert "crossencoder_cache_dir" in data["properties"]
+    assert "crossencoder_revision" in data["properties"]
 
 
 def test_cli_run_persists_default_signal_ensemble_comparison_payload(

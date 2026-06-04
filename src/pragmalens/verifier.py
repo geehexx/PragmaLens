@@ -9,6 +9,7 @@ from importlib import import_module
 from math import exp
 from typing import TYPE_CHECKING, Any, Protocol
 
+from pragmalens.live_runtime import load_crossencoder_model
 from pragmalens.models import (
     EvidenceCandidate,
     VerificationScore,
@@ -514,13 +515,24 @@ def build_verifier_adapter(
             ),
         )
     if selected is VerifierBackend.CROSSENCODER_NLI:
-        settings = load_settings() if model_name is None else None
+        settings = load_settings() if model_name is None or cache_dir is None else None
         return _build_crossencoder_from_runtime(
             model_name=model_name
             or (
                 settings.crossencoder_model
                 if settings is not None
                 else "cross-encoder/nli-deberta-v3-base"
+            ),
+            cache_dir=cache_dir
+            or (
+                str(settings.crossencoder_cache_dir)
+                if settings is not None
+                else ".local_state/crossencoder-cache"
+            ),
+            revision=(
+                settings.crossencoder_revision
+                if settings is not None
+                else "f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5"
             ),
             label_mapping=label_mapping or ("contradiction", "entailment", "neutral"),
         )
@@ -559,11 +571,13 @@ def _build_minicheck_from_runtime(*, model_name: str, cache_dir: str) -> Verifie
 
 
 def _build_crossencoder_from_runtime(
-    *, model_name: str, label_mapping: Sequence[str]
+    *, model_name: str, cache_dir: str, revision: str, label_mapping: Sequence[str]
 ) -> VerifierAdapter:
     """Instantiate a CrossEncoder-backed verifier from real runtime dependencies."""
     return _load_crossencoder_verifier(
         model_name=model_name,
+        cache_dir=cache_dir,
+        revision=revision,
         label_mapping=tuple(label_mapping),
     )
 
@@ -580,12 +594,11 @@ def _load_minicheck_verifier(*, model_name: str, cache_dir: str) -> VerifierAdap
 
 @lru_cache(maxsize=8)
 def _load_crossencoder_verifier(
-    *, model_name: str, label_mapping: tuple[str, ...]
+    *, model_name: str, cache_dir: str, revision: str, label_mapping: tuple[str, ...]
 ) -> VerifierAdapter:
     """Load and cache a CrossEncoder-backed verifier instance."""
-    sentence_transformers_module = import_module("sentence_transformers")
     return CrossEncoderNliVerifier(
-        sentence_transformers_module.CrossEncoder(model_name),
+        load_crossencoder_model(model_name=model_name, cache_dir=cache_dir, revision=revision),
         model_name=model_name,
         label_mapping=label_mapping,
     )

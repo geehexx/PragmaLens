@@ -26,6 +26,13 @@ class PragmaLensSettings(BaseModel):
     minicheck_model: str = Field(default="roberta-large", min_length=1)
     minicheck_cache_dir: Path = Field(default_factory=lambda: Path(".local_state/minicheck-cache"))
     crossencoder_model: str = Field(default="cross-encoder/nli-deberta-v3-base", min_length=1)
+    crossencoder_cache_dir: Path = Field(
+        default_factory=lambda: Path(".local_state/crossencoder-cache")
+    )
+    crossencoder_revision: str = Field(
+        default="f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5",
+        min_length=1,
+    )
 
     @classmethod
     def from_env(cls) -> PragmaLensSettings:
@@ -59,6 +66,16 @@ class PragmaLensSettings(BaseModel):
                 "crossencoder_model": os.environ.get(
                     "PRAGMALENS_CROSSENCODER_MODEL",
                     "cross-encoder/nli-deberta-v3-base",
+                ),
+                "crossencoder_cache_dir": Path(
+                    os.environ.get(
+                        "PRAGMALENS_CROSSENCODER_CACHE_DIR",
+                        ".local_state/crossencoder-cache",
+                    )
+                ),
+                "crossencoder_revision": os.environ.get(
+                    "PRAGMALENS_CROSSENCODER_REVISION",
+                    "f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5",
                 ),
             }
             return cls.model_validate(payload)

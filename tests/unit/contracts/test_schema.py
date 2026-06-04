@@ -54,6 +54,8 @@ def test_schema_export_settings_includes_runtime_fields(tmp_path: Path) -> None:
     assert data["title"] == "PragmaLensSettings"
     assert "spacy_model" in data["properties"]
     assert "verifier_backend" in data["properties"]
+    assert "crossencoder_cache_dir" in data["properties"]
+    assert "crossencoder_revision" in data["properties"]
 
 
 def test_schema_export_invalid_model(tmp_path: Path) -> None:

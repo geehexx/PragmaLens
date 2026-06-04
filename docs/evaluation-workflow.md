@@ -14,7 +14,9 @@ runs, and live smoke checks each answer a different question.
   local models and dependencies are installed.
 - Default CI live-verifier coverage currently exercises MiniCheck only; the
   CrossEncoder live-smoke path remains manual because hosted model downloads
-  are not reliably reproducible on the shared runner.
+  are not reliably reproducible on the shared runner. The loader is pinned to
+  revision `f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5` and caches under
+  `.local_state/crossencoder-cache` by default.
 
 ## Current Baselines
 
@@ -68,6 +70,9 @@ future tranche broadens evaluation coverage, the main candidates to compare are:
 
 Any new corpus should be added only with explicit license/provenance review and
 an approval sidecar that matches the checked-in fixture.
+
+For the extraction-specific tuning plan and manual verification matrix, see
+[docs/extraction-tuning-plan.md](extraction-tuning-plan.md).
 
 ## Refresh Commands
 

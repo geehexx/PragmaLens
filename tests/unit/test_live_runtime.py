@@ -18,6 +18,7 @@ def _clear_caches() -> None:
     live_runtime.load_spacy_pipeline.cache_clear()
     live_runtime.load_gliner2_model.cache_clear()
     live_runtime._ollama_model_available.cache_clear()
+    live_runtime.load_crossencoder_model.cache_clear()
 
 
 def test_load_spacy_pipeline_uses_package_model(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -105,6 +106,49 @@ def test_load_minicheck_scorer_requires_install(monkeypatch: pytest.MonkeyPatch)
 
     with pytest.raises(RuntimeError, match="Install MiniCheck"):
         live_runtime.load_minicheck_scorer()
+
+
+def test_load_crossencoder_model_loads_configured_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentence_transformers = SimpleNamespace(
+        CrossEncoder=lambda model_name, *, cache_folder, revision: (
+            model_name,
+            cache_folder,
+            revision,
+        )
+    )
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        lambda name: sentence_transformers if name == "sentence_transformers" else None,
+    )
+    monkeypatch.setenv("PRAGMALENS_CROSSENCODER_MODEL", "ce-model")
+    monkeypatch.setenv("PRAGMALENS_CROSSENCODER_CACHE_DIR", "/tmp/ce-cache")
+    monkeypatch.setenv("PRAGMALENS_CROSSENCODER_REVISION", "ce-revision")
+
+    assert live_runtime.load_crossencoder_model() == (
+        "ce-model",
+        "/tmp/ce-cache",
+        "ce-revision",
+    )
+
+
+def test_load_crossencoder_model_requires_install(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        importlib,
+        "import_module",
+        lambda name: (
+            (_ for _ in ()).throw(ImportError("missing"))
+            if name == "sentence_transformers"
+            else None
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Install Sentence Transformers"):
+        live_runtime.load_crossencoder_model()
 
 
 def test_langextract_provider_config_covers_all_branches(monkeypatch: pytest.MonkeyPatch) -> None:

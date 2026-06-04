@@ -14,6 +14,8 @@ def test_load_settings_defaults_without_env(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert settings == PragmaLensSettings()
     assert settings.minicheck_cache_dir == Path(".local_state/minicheck-cache")
+    assert settings.crossencoder_cache_dir == Path(".local_state/crossencoder-cache")
+    assert settings.crossencoder_revision == "f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5"
 
 
 def test_load_settings_applies_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -29,6 +31,11 @@ def test_load_settings_applies_env_overrides(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("PRAGMALENS_MINICHECK_MODEL", "mini-model")
     monkeypatch.setenv("PRAGMALENS_MINICHECK_CACHE_DIR", "/tmp/minicheck-cache")
     monkeypatch.setenv("PRAGMALENS_CROSSENCODER_MODEL", "ce-model")
+    monkeypatch.setenv("PRAGMALENS_CROSSENCODER_CACHE_DIR", "/tmp/crossencoder-cache")
+    monkeypatch.setenv(
+        "PRAGMALENS_CROSSENCODER_REVISION",
+        "f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5",
+    )
 
     settings = load_settings()
 
@@ -43,6 +50,8 @@ def test_load_settings_applies_env_overrides(monkeypatch: pytest.MonkeyPatch) ->
     assert settings.minicheck_model == "mini-model"
     assert settings.minicheck_cache_dir == Path("/tmp/minicheck-cache")
     assert settings.crossencoder_model == "ce-model"
+    assert settings.crossencoder_cache_dir == Path("/tmp/crossencoder-cache")
+    assert settings.crossencoder_revision == "f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5"
 
 
 def test_load_settings_rejects_invalid_verifier_backend(
@@ -68,5 +77,7 @@ def _clear_runtime_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "PRAGMALENS_MINICHECK_MODEL",
         "PRAGMALENS_MINICHECK_CACHE_DIR",
         "PRAGMALENS_CROSSENCODER_MODEL",
+        "PRAGMALENS_CROSSENCODER_CACHE_DIR",
+        "PRAGMALENS_CROSSENCODER_REVISION",
     ]:
         monkeypatch.delenv(name, raising=False)

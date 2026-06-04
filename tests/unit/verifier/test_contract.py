@@ -542,8 +542,16 @@ def test_build_verifier_from_env_uses_crossencoder_factory(
 ) -> None:
     marker = object()
 
-    def fake_builder(*, model_name: str, label_mapping: tuple[str, ...]) -> object:
+    def fake_builder(
+        *,
+        model_name: str,
+        cache_dir: str,
+        revision: str,
+        label_mapping: tuple[str, ...],
+    ) -> object:
         assert model_name == "ce-model"
+        assert cache_dir == ".local_state/crossencoder-cache"
+        assert revision == "f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5"
         assert label_mapping == ("contradiction", "entailment", "neutral")
         return marker
 

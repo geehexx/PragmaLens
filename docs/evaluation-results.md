@@ -33,7 +33,9 @@ documented process with the current artifacts.
 ## Current Operational Findings
 
 - The shared CI runner does not reliably fetch the CrossEncoder model from
-  Hugging Face, so that path stays manual.
+  Hugging Face, so that path stays manual. The live loader is pinned to
+  revision `f2f24f9fce8fc5b34aedf861f5c819c6ba0cf4f5` and caches under
+  `.local_state/crossencoder-cache` by default.
 - The CPU-safe CI verifier lane is stable when it only exercises MiniCheck.
 - The offline verification lane and lane-alignment gate are green on the latest
   branch state.
@@ -44,4 +46,3 @@ If the next tranche broadens evaluation beyond the current tiny baselines, the
 first external corpora to compare are FEVER, FEVEROUS, SciFact, and a larger
 RAGTruth slice. Each needs explicit provenance and approval metadata before it
 is promoted into the tracked fixtures.
-
