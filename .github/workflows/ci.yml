@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  repo-layout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Sync
+        run: uv sync --frozen
+
+      - name: Product repo layout
+        run: uv run nox -s repo-layout
+
+  lint-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Sync
+        run: uv sync --frozen
+
+      - name: Nox lint and types
+        run: uv run nox -s lint types
+
+  offline-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Sync
+        run: uv sync --frozen
+
+      - name: Nox offline verify and build
+        run: uv run nox -s offline-verify build
+
+      - name: Import built wheel
+        run: |
+          tmpdir=$(mktemp -d)
+          uv venv "$tmpdir/venv"
+          uv pip install --python "$tmpdir/venv/bin/python" --no-deps dist/*.whl
+          (cd "$tmpdir" && "$tmpdir/venv/bin/python" -c "import pragmalens; print(pragmalens.__file__)")
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

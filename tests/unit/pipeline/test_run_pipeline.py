@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from pragmalens.core import run_pipeline
+from pragmalens.pipeline.stage_graph import (
+    REQUIRED_STAGE_IDS,
+    default_v01_stages,
+    validate_stage_graph,
+)
+from pragmalens.pipeline.text import is_valid_span
+
+
+def test_default_stage_graph_validates() -> None:
+    """Keep the runtime stage graph aligned with the declared v0.1 sequence."""
+    stages = default_v01_stages()
+    validate_stage_graph(stages)
+    assert [stage.id for stage in stages] == REQUIRED_STAGE_IDS
+
+
+def test_run_pipeline_outputs_spacy_artifacts_and_valid_cues(tmp_path: Path) -> None:
+    """Verify the current default pipeline emits substrate traces and trace metadata."""
+    text = "If we must ship now, we should not delay [1]."
+    report_out = tmp_path / "out" / "report.json"
+    trace_dir = tmp_path / "trace"
+
+    report, manifest = run_pipeline(
+        text=text,
+        document_id="doc-1",
+        input_path="/tmp/doc.md",
+        report_path=str(report_out),
+        trace_dir=trace_dir,
+    )
+
+    assert report.findings == []
+    assert manifest.stage_health["spacy_substrate"] == "ok"
+    assert manifest.stages_requested == REQUIRED_STAGE_IDS
+
+    spacy_artifact = json.loads((trace_dir / "spacy_substrate.json").read_text(encoding="utf-8"))
+    assert spacy_artifact["sentences"]
+    assert spacy_artifact["tokens"]
+    assert spacy_artifact["cues"]
+
+    for cue in spacy_artifact["cues"]:
+        assert is_valid_span(text, cue["start_char"], cue["end_char"])
+
+
+def test_run_pipeline_builds_default_report_shape(tmp_path: Path) -> None:
+    """Verify the default report contract still has the expected empty baseline shape."""
+    report, _ = run_pipeline(
+        text="# Doc\n\nClaim",
+        document_id="doc-123",
+        input_path="/tmp/doc.md",
+        report_path=str(tmp_path / "report.json"),
+        trace_dir=tmp_path / "trace",
+    )
+
+    payload = report.model_dump(mode="json")
+    assert payload["report_version"] == "0.1"
+    assert payload["document_id"] == "doc-123"
+    assert payload["source_format"] == "markdown_or_text"
+    assert payload["findings"] == []
+    assert payload["candidates"]
+    assert payload["warnings"] == []

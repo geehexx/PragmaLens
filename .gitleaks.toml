@@ -1,0 +1,11 @@
+title = "PragmaLens gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Allow fixtures and lockfile"
+paths = [
+  '''tests/fixtures/.*''',
+  '''uv\.lock''',
+]
