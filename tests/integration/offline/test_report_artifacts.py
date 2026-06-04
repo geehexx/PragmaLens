@@ -59,6 +59,7 @@ def test_cli_emits_report_manifest_markdown_and_trace_with_shared_run_id(tmp_pat
     assert result.exit_code == 0, result.output
     report_payload = json.loads(report.read_text(encoding="utf-8"))
     manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+    stage_timings_payload = json.loads((trace / "stage_timings.json").read_text(encoding="utf-8"))
     trace_manifest_payload = json.loads((trace / "trace_manifest.json").read_text(encoding="utf-8"))
     assert report_payload["run_id"] == manifest_payload["run_id"]
     assert trace_manifest_payload["run_id"] == report_payload["run_id"]
@@ -72,6 +73,11 @@ def test_cli_emits_report_manifest_markdown_and_trace_with_shared_run_id(tmp_pat
     assert (trace / "stage_timings.json").exists()
     assert (trace / "verification.json").exists()
     assert (trace / "findings.json").exists()
+    assert trace_manifest_payload["total_duration_ms"] >= round(
+        sum(item["duration_ms"] for item in stage_timings_payload["stages"]),
+        3,
+    )
+    assert trace_manifest_payload["total_duration_ms"] == stage_timings_payload["total_duration_ms"]
     assert "verification.json" in trace_manifest_payload["files"]
     assert "stage_timings.json" in trace_manifest_payload["files"]
 

@@ -68,6 +68,7 @@ def live_verifier(session: nox.Session) -> None:
     """Run the CPU-safe live verifier slice used by default CI."""
     session.env["PRAGMALENS_ENABLE_LIVE_SMOKE"] = "1"
     session.env["CUDA_VISIBLE_DEVICES"] = ""
+    _run_uv(session, "run", "--group", "live", "python", "-m", "nltk.downloader", "punkt_tab")
     _run_uv(
         session,
         "run",

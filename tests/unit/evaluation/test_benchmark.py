@@ -19,6 +19,8 @@ from pragmalens.verifier import (
     CrossEncoderNliVerifier,
     MiniCheckVerifier,
     OfflineBaselineVerifier,
+    SignalEnsembleVerifier,
+    VerifierBackend,
 )
 from pragmalens.verifier_calibration import VerifierCalibrationCase
 
@@ -212,6 +214,33 @@ def test_run_corpus_benchmark_can_compare_crossencoder_live_backend() -> None:
     assert metadata.selected_backend == "crossencoder_nli"
     assert {summary.backend for summary in report.summaries} == {"offline", "crossencoder_nli"}
     assert recommendation.backend == "crossencoder_nli"
+
+
+def test_run_corpus_benchmark_accepts_signal_ensemble_runtime_helper() -> None:
+    selected_verifier = MiniCheckVerifier(
+        _MiniCheckScorer(
+            {
+                "supported claim": 0.91,
+                "unsupported claim": 0.08,
+            }
+        ),
+        model_name="mini-fixture",
+    )
+    ensemble = SignalEnsembleVerifier(
+        [OfflineBaselineVerifier(), selected_verifier],
+        selected_backend=VerifierBackend.MINICHECK,
+    )
+
+    report, metadata, recommendation = run_corpus_benchmark(
+        _batch(),
+        _approval(),
+        selected_verifier=ensemble,
+        run_id="signal-ensemble-benchmark",
+    )
+
+    assert metadata.selected_backend == "minicheck"
+    assert {summary.backend for summary in report.summaries} == {"offline", "minicheck"}
+    assert recommendation.backend == "minicheck"
 
 
 def test_render_corpus_benchmark_summary_includes_core_fields() -> None:

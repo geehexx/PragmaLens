@@ -120,3 +120,16 @@ def write_traces(trace_dir: Path, context: RunContext, stage_results: list[Stage
             "files": sorted(path.name for path in trace_dir.iterdir() if path.is_file()),
         },
     )
+
+
+def finalize_trace_durations(trace_dir: Path, total_duration_ms: float) -> None:
+    """Patch the end-to-end pipeline duration into the timing artifacts."""
+    rounded_total = round(total_duration_ms, 3)
+    stage_timings_path = trace_dir / "stage_timings.json"
+    trace_manifest_path = trace_dir / "trace_manifest.json"
+    stage_timings = json.loads(stage_timings_path.read_text(encoding="utf-8"))
+    trace_manifest = json.loads(trace_manifest_path.read_text(encoding="utf-8"))
+    stage_timings["total_duration_ms"] = rounded_total
+    trace_manifest["total_duration_ms"] = rounded_total
+    stage_timings_path.write_text(json.dumps(stage_timings, indent=2) + "\n", encoding="utf-8")
+    trace_manifest_path.write_text(json.dumps(trace_manifest, indent=2) + "\n", encoding="utf-8")

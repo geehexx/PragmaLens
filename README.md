@@ -124,6 +124,7 @@ silently skipped.
 ```bash
 uv run python -m spacy download en_core_web_sm
 uv run python -m spacy validate
+uv run python -m nltk.downloader punkt_tab
 ollama pull qwen3.5:0.8b
 ```
 
@@ -175,7 +176,8 @@ uv sync --group live --group qa
   - `PRAGMALENS_MINICHECK_CACHE_DIR`
   - `PRAGMALENS_CROSSENCODER_MODEL`
 - The live pipeline trace now records per-stage timing in `trace/stage_timings.json`
-  and surfaces the total pipeline duration in `trace/trace_manifest.json`.
+  and an end-to-end `total_duration_ms` in `trace/trace_manifest.json` after
+  report and trace emission complete.
 
 GLiNER2 and MiniCheck download weights on first use. MiniCheck caches under
 `PRAGMALENS_MINICHECK_CACHE_DIR` when set, otherwise `.local_state/minicheck-cache`.

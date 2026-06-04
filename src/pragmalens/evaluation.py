@@ -14,6 +14,7 @@ from pragmalens.verifier import (
     CrossEncoderNliVerifier,
     MiniCheckVerifier,
     OfflineBaselineVerifier,
+    SignalEnsembleVerifier,
     VerifierAdapter,
     VerifierBackend,
     build_verifier_adapter,
@@ -147,11 +148,14 @@ def run_corpus_benchmark(
             raise ValueError("selected backend must match the selected verifier")
     _validate_corpus_gate(batch, approval)
     verifier = selected_verifier or build_verifier_adapter(backend)
+    benchmark_verifier = _benchmark_verifier_for(verifier)
     calibration_cases = list(batch.cases)
     resolved_run_id = run_id or f"{batch.corpus_id}-{backend.value}"
-    report = _compare_benchmark_backends(calibration_cases, verifier, backend, resolved_run_id)
+    report = _compare_benchmark_backends(
+        calibration_cases, benchmark_verifier, backend, resolved_run_id
+    )
     recommendation = recommend_calibration(
-        verifier,
+        benchmark_verifier,
         _to_calibration_examples(calibration_cases),
         evidence_source=approval.source_uri,
     )
@@ -264,6 +268,10 @@ def _resolve_selected_backend(
     """Resolve the benchmark backend from an explicit selector or the injected verifier."""
     if selected_backend is not None:
         return VerifierBackend(selected_backend)
+    if isinstance(selected_verifier, SignalEnsembleVerifier):
+        if selected_verifier.selected_backend is None:
+            raise ValueError("signal ensemble verifier does not declare a selected backend")
+        return selected_verifier.selected_backend
     if selected_verifier is not None:
         backend = getattr(selected_verifier, "backend", None)
         if isinstance(backend, VerifierBackend):
@@ -271,6 +279,13 @@ def _resolve_selected_backend(
         if isinstance(backend, str):
             return VerifierBackend(backend)
     return VerifierBackend.OFFLINE
+
+
+def _benchmark_verifier_for(verifier: VerifierAdapter) -> VerifierAdapter:
+    """Resolve the concrete backend adapter that benchmark helpers should compare."""
+    if isinstance(verifier, SignalEnsembleVerifier):
+        return verifier.selected_backend_adapter()
+    return verifier
 
 
 def _compare_benchmark_backends(

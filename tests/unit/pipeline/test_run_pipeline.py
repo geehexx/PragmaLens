@@ -13,7 +13,11 @@ from pragmalens.pipeline.stage_graph import (
     validate_stage_graph,
 )
 from pragmalens.pipeline.text import is_valid_span
-from pragmalens.verifier import OfflineBaselineVerifier, VerifierBackend
+from pragmalens.verifier import (
+    OfflineBaselineVerifier,
+    SignalEnsembleVerifier,
+    VerifierBackend,
+)
 from pragmalens.verifier_comparison import VerifierComparisonHarness
 
 
@@ -55,7 +59,7 @@ class _SupportedVerifier:
                 status=VerificationStatus.SUPPORTED,
                 rationale="signal ensemble fixture",
                 evidence_ids=candidate.evidence_refs,
-                backend="signal_ensemble",
+                backend=self.backend,
             )
             for candidate in candidates
         ]
@@ -86,9 +90,7 @@ def test_run_pipeline_outputs_spacy_artifacts_and_valid_cues(tmp_path: Path) -> 
     assert manifest.stage_health["spacy_substrate"] == "ok"
     assert manifest.stages_requested == REQUIRED_STAGE_IDS
     assert "stage_timings_json" in manifest.artifacts
-    assert "total_duration_ms" in json.loads(
-        (trace_dir / "trace_manifest.json").read_text(encoding="utf-8")
-    )
+    trace_manifest = json.loads((trace_dir / "trace_manifest.json").read_text(encoding="utf-8"))
 
     spacy_artifact = json.loads((trace_dir / "spacy_substrate.json").read_text(encoding="utf-8"))
     assert spacy_artifact["sentences"]
@@ -98,7 +100,11 @@ def test_run_pipeline_outputs_spacy_artifacts_and_valid_cues(tmp_path: Path) -> 
     assert all(result["duration_ms"] is not None for result in stage_results)
     stage_timings = json.loads((trace_dir / "stage_timings.json").read_text(encoding="utf-8"))
     assert stage_timings["stages"]
-    assert stage_timings["total_duration_ms"] >= 0
+    stage_duration_sum = round(
+        sum(float(item["duration_ms"]) for item in stage_timings["stages"]), 3
+    )
+    assert stage_timings["total_duration_ms"] >= stage_duration_sum
+    assert trace_manifest["total_duration_ms"] >= stage_duration_sum
     assert [item["stage_id"] for item in stage_timings["stages"]] == REQUIRED_STAGE_IDS
 
     for cue in spacy_artifact["cues"]:
@@ -145,13 +151,18 @@ def test_run_pipeline_uses_default_verifier_runtime_for_signal_ensemble(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    live_verifier = _SupportedVerifier()
+    ensemble = SignalEnsembleVerifier(
+        [OfflineBaselineVerifier(), live_verifier],
+        selected_backend=VerifierBackend.MINICHECK,
+    )
     harness = VerifierComparisonHarness(
         selected_backend=VerifierBackend.MINICHECK,
-        verifiers=[OfflineBaselineVerifier(), _SupportedVerifier()],
+        verifiers=[OfflineBaselineVerifier(), live_verifier],
     )
     monkeypatch.setattr(
         "pragmalens.core.build_default_verifier_runtime",
-        lambda backend=None: (_SupportedVerifier(), harness),
+        lambda backend=None: (ensemble, harness),
     )
 
     report, manifest = run_pipeline(
@@ -166,4 +177,5 @@ def test_run_pipeline_uses_default_verifier_runtime_for_signal_ensemble(
     assert report.verification[0].backend == "signal_ensemble"
     assert report.verification_comparison is not None
     assert report.verification_comparison.selected_backend == VerifierBackend.MINICHECK
+    assert report.verification_comparison.records[0].selected_verdict.backend == "minicheck"
     assert "verification_comparison_json" in manifest.artifacts

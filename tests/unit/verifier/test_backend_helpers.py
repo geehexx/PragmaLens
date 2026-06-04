@@ -197,8 +197,24 @@ def test_build_default_verifier_runtime_wraps_live_backend_in_signal_ensemble(
     verifier, comparison_harness = build_default_verifier_runtime(VerifierBackend.MINICHECK)
 
     assert isinstance(verifier, SignalEnsembleVerifier)
+    assert verifier.selected_backend == VerifierBackend.MINICHECK
     assert comparison_harness is not None
     assert comparison_harness.selected_backend == VerifierBackend.MINICHECK
+
+
+def test_signal_ensemble_verifier_exposes_selected_backend_runtime_details() -> None:
+    selected_verifier = _StaticVerifier(VerifierBackend.MINICHECK, [VerificationStatus.SUPPORTED])
+    verifier = SignalEnsembleVerifier(
+        [selected_verifier],
+        selected_backend=VerifierBackend.MINICHECK,
+    )
+
+    verdicts = verifier.verify([_candidate()], document_id="doc", text="Need evidence.")
+
+    assert verifier.selected_backend == VerifierBackend.MINICHECK
+    assert verifier.selected_backend_adapter() is selected_verifier
+    assert verifier.selected_backend_verdicts()[0].backend == VerifierBackend.MINICHECK
+    assert verdicts[0].backend == "signal_ensemble"
 
 
 def test_build_default_verifier_runtime_keeps_offline_default_simple() -> None:

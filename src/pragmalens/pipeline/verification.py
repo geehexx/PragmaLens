@@ -10,7 +10,11 @@ from pragmalens.models import (
     VerificationVerdict,
 )
 from pragmalens.pipeline.runtime import RunContext, StageResult
-from pragmalens.verifier import OfflineBaselineVerifier, VerifierAdapter
+from pragmalens.verifier import (
+    OfflineBaselineVerifier,
+    SignalEnsembleVerifier,
+    VerifierAdapter,
+)
 from pragmalens.verifier_comparison import VerifierComparisonHarness
 
 
@@ -57,11 +61,14 @@ class VerifyClaimsStage:
         comparison_payload = None
         if self._comparison_harness is not None and valid_candidates:
             try:
+                selected_verdicts = verdicts
+                if isinstance(self._verifier, SignalEnsembleVerifier):
+                    selected_verdicts = self._verifier.selected_backend_verdicts()
                 comparison = self._comparison_harness.compare(
                     valid_candidates,
                     document_id=context.document_id,
                     text=context.text,
-                    selected_verdicts=verdicts,
+                    selected_verdicts=selected_verdicts,
                 )
                 context.metadata["verification_comparison"] = comparison
                 comparison_payload = comparison.model_dump(mode="json")

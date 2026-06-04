@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from time import perf_counter
 
 from pragmalens.models import NeutralReport, RunManifest
-from pragmalens.pipeline.reporting import build_report_and_manifest, write_traces
+from pragmalens.pipeline.reporting import (
+    build_report_and_manifest,
+    finalize_trace_durations,
+    write_traces,
+)
 from pragmalens.pipeline.runtime import PipelineRunner, RunContext
 from pragmalens.pipeline.stage_graph import default_v01_stages, validate_stage_graph
 from pragmalens.profiles import load_profile
@@ -31,6 +36,7 @@ def run_pipeline(
     comparison_harness: VerifierComparisonHarness | None = None,
 ) -> tuple[NeutralReport, RunManifest]:
     """Execute the default v0.1 pipeline and emit traces plus contracts."""
+    pipeline_started = perf_counter()
     profile = load_profile(profile_name)
     context = RunContext(
         document_id=document_id,
@@ -55,10 +61,12 @@ def run_pipeline(
     runner = PipelineRunner(stages)
     results = runner.run(context)
     write_traces(trace_dir=trace_dir, context=context, stage_results=results)
-    return build_report_and_manifest(
+    report, manifest = build_report_and_manifest(
         context,
         input_path=input_path,
         report_path=report_path,
         trace_dir=trace_dir,
         stage_results=results,
     )
+    finalize_trace_durations(trace_dir, (perf_counter() - pipeline_started) * 1000.0)
+    return report, manifest
