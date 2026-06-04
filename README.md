@@ -1,6 +1,6 @@
 # PragmaLens v0.1
 
-PragmaLens is a Python natural-language evidence and discourse audit engine, aligned to the v5 implementation package. Current code is a v0.1 scaffold with deterministic offline lanes and optional live smoke lanes for extractor and verifier runtimes.
+PragmaLens is a Python natural-language evidence and discourse audit engine, aligned to the v5 implementation package. Current code is a v0.1 scaffold with a deterministic offline default verifier, captured fixture lanes for extraction, and optional live smoke lanes for extractor and verifier runtimes.
 
 ## v0.1 Scope Constraints
 
@@ -18,7 +18,7 @@ PragmaLens is a Python natural-language evidence and discourse audit engine, ali
 - `langextract_discourse` (captured fixture mode for offline CI)
 - `gliner2_candidates` (captured fixture mode for offline CI)
 - `evidence_normalizer`
-- `verify_claims` (selected backend verdict contract, with optional comparison artifact)
+- `verify_claims` (selected verifier verdict contract, with optional same-batch comparison artifact)
 - `synthesize_findings`
 - `render_reports_and_traces`
 
@@ -90,6 +90,7 @@ gitleaks git --config .gitleaks.toml
 - Default product runs and default tests are offline and use captured fixtures for LangExtract and GLiNER2.
 - Live smoke tests are marked `live_smoke` and skipped by default.
 - Live verifier backends are optional runtime selections. The product CLI can select them explicitly with `--verifier-backend` or through `PRAGMALENS_VERIFIER`.
+- The verifier defaults to the offline baseline unless `--verifier-backend` or `PRAGMALENS_VERIFIER` selects MiniCheck or CrossEncoder NLI.
 - The verification stage now supports a typed same-batch comparison surface for offline baseline, MiniCheck, and CrossEncoder NLI when a comparison harness is injected programmatically. The resulting artifact lands in `trace/verification.json` and, when enabled, in `report.verification_comparison`.
 - Live smoke opt-in:
 

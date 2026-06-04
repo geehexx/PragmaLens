@@ -1,9 +1,18 @@
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from pragmalens.cli import app
+from pragmalens.models import (
+    NeutralReport,
+    RunManifest,
+    VerificationStatus,
+    VerificationVerdict,
+    VerifierBatchComparison,
+    VerifierCandidateComparison,
+)
 
 
 def test_cli_run_produces_report_and_manifest(tmp_path: Path) -> None:
@@ -47,3 +56,77 @@ def test_cli_schema_export(tmp_path: Path) -> None:
     result = runner.invoke(app, ["schema", "export", "--out", str(out), "--model", "manifest"])
     assert result.exit_code == 0
     assert out.exists()
+
+
+def test_cli_run_persists_default_signal_ensemble_comparison_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    src = tmp_path / "sample.md"
+    src.write_text("# Plan\n\nA claim.", encoding="utf-8")
+
+    report_out = tmp_path / "out" / "report.json"
+    manifest_out = tmp_path / "out" / "manifest.json"
+
+    report = NeutralReport(
+        run_id="run-sample",
+        document_id="sample",
+        findings=[],
+        candidates=[],
+        verification=[
+            VerificationVerdict(
+                candidate_id="candidate-1",
+                status=VerificationStatus.SUPPORTED,
+                rationale="ensemble fixture",
+                backend="signal_ensemble",
+            )
+        ],
+        verification_comparison=VerifierBatchComparison(
+            selected_backend="minicheck",
+            total_candidates=1,
+            records=[
+                VerifierCandidateComparison(
+                    candidate_id="candidate-1",
+                    selected_verdict=VerificationVerdict(
+                        candidate_id="candidate-1",
+                        status=VerificationStatus.SUPPORTED,
+                        rationale="selected fixture",
+                        backend="minicheck",
+                    ),
+                    backend_verdicts=[],
+                    disagreement=False,
+                )
+            ],
+        ),
+    )
+    manifest = RunManifest(
+        run_id="run-sample",
+        document_id="sample",
+        input_path=str(src),
+        report_path=str(report_out),
+        stages_requested=["verify_claims"],
+        stage_health={"verify_claims": "ok"},
+        artifacts={"verification_comparison_json": str(tmp_path / "trace" / "comparison.json")},
+    )
+    monkeypatch.setattr("pragmalens.cli.run_pipeline", lambda **_: (report, manifest))
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--input",
+            str(src),
+            "--report-out",
+            str(report_out),
+            "--manifest-out",
+            str(manifest_out),
+        ],
+    )
+
+    assert result.exit_code == 0
+    saved_report = json.loads(report_out.read_text(encoding="utf-8"))
+    saved_manifest = json.loads(manifest_out.read_text(encoding="utf-8"))
+    assert saved_report["verification"][0]["backend"] == "signal_ensemble"
+    assert saved_report["verification_comparison"]["selected_backend"] == "minicheck"
+    assert "verification_comparison_json" in saved_manifest["artifacts"]

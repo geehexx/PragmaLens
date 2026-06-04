@@ -8,7 +8,7 @@ from enum import StrEnum
 from functools import lru_cache
 from importlib import import_module
 from math import exp
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pragmalens.models import (
     EvidenceCandidate,
@@ -18,6 +18,9 @@ from pragmalens.models import (
     VerifierCalibrationProfile,
     VerifierCalibrationThresholds,
 )
+
+if TYPE_CHECKING:
+    from pragmalens.verifier_comparison import VerifierComparisonHarness
 
 
 class VerifierBackend(StrEnum):
@@ -105,6 +108,61 @@ class OfflineBaselineVerifier:
             )
             for candidate in candidates
         ]
+
+
+class SignalEnsembleVerifier:
+    """Conservative composite verifier over multiple backend verdict streams."""
+
+    backend = "signal_ensemble"
+    model_name = "signal-ensemble"
+
+    def __init__(self, verifiers: Sequence[VerifierAdapter]) -> None:
+        """Preserve the configured verifier order for deterministic combination."""
+        self._verifiers = list(verifiers)
+        if not self._verifiers:
+            raise ValueError("signal ensemble requires at least one verifier")
+
+    def verify(
+        self,
+        candidates: list[EvidenceCandidate],
+        *,
+        document_id: str,
+        text: str,
+    ) -> list[VerificationVerdict]:
+        """Combine backend verdicts using the current conservative precedence rules."""
+        batches = [
+            self._validated_verdict_batch(
+                verifier.verify(candidates, document_id=document_id, text=text),
+                candidates,
+            )
+            for verifier in self._verifiers
+        ]
+        verdicts: list[VerificationVerdict] = []
+        for index, candidate in enumerate(candidates):
+            candidate_verdicts = [batch[index] for batch in batches]
+            selected_status = _merge_verification_statuses(
+                [verdict.status for verdict in candidate_verdicts]
+            )
+            verdicts.append(
+                VerificationVerdict(
+                    candidate_id=candidate.candidate_id,
+                    status=selected_status,
+                    rationale=_build_ensemble_rationale(candidate_verdicts),
+                    evidence_ids=_merge_evidence_ids(candidate, candidate_verdicts),
+                    backend=self.backend,
+                    model_name=self.model_name,
+                    score=_selected_score(candidate_verdicts, selected_status),
+                )
+            )
+        return verdicts
+
+    @staticmethod
+    def _validated_verdict_batch(
+        verdicts: list[VerificationVerdict], candidates: list[EvidenceCandidate]
+    ) -> list[VerificationVerdict]:
+        """Reject backend outputs that do not align with the requested candidate batch."""
+        _validate_verdict_batch(candidates, verdicts)
+        return verdicts
 
 
 class MiniCheckVerifier:
@@ -402,25 +460,46 @@ def build_verifier_adapter(
     raise ValueError(f"Unsupported verifier backend: {backend!r}")
 
 
+def build_default_verifier_runtime(
+    backend: VerifierBackend | str | None = None,
+) -> tuple[VerifierAdapter, VerifierComparisonHarness | None]:
+    """Build the default verifier and optional comparison harness for one backend choice."""
+    selected = _resolve_backend_selector(backend)
+    if selected is VerifierBackend.OFFLINE:
+        return OfflineBaselineVerifier(), None
+
+    offline = OfflineBaselineVerifier()
+    live = build_verifier_adapter(
+        selected,
+        model_name=_selected_model_name(selected),
+        cache_dir=_selected_cache_dir(selected),
+        label_mapping=_selected_label_mapping(selected),
+    )
+    verifiers = [offline, live]
+    comparison_module = import_module("pragmalens.verifier_comparison")
+    return (
+        SignalEnsembleVerifier(verifiers),
+        comparison_module.VerifierComparisonHarness(
+            selected_backend=selected,
+            verifiers=verifiers,
+        ),
+    )
+
+
 def build_verifier_from_env() -> VerifierAdapter:
     """Build a verifier adapter from environment configuration."""
-    backend = os.environ.get("PRAGMALENS_VERIFIER", VerifierBackend.OFFLINE)
+    backend = _resolve_backend_selector(None)
     if backend == VerifierBackend.MINICHECK:
         return build_verifier_adapter(
             backend,
-            model_name=os.environ.get("PRAGMALENS_MINICHECK_MODEL", "roberta-large"),
-            cache_dir=os.environ.get(
-                "PRAGMALENS_MINICHECK_CACHE_DIR",
-                ".local_state/minicheck-cache",
-            ),
+            model_name=_selected_model_name(backend),
+            cache_dir=_selected_cache_dir(backend),
         )
     if backend == VerifierBackend.CROSSENCODER_NLI:
         return build_verifier_adapter(
             backend,
-            model_name=os.environ.get(
-                "PRAGMALENS_CROSSENCODER_MODEL",
-                "cross-encoder/nli-deberta-v3-base",
-            ),
+            model_name=_selected_model_name(backend),
+            label_mapping=_selected_label_mapping(backend),
         )
     return build_verifier_adapter(VerifierBackend.OFFLINE)
 
@@ -461,3 +540,100 @@ def _load_crossencoder_verifier(
         model_name=model_name,
         label_mapping=label_mapping,
     )
+
+
+def _resolve_backend_selector(backend: VerifierBackend | str | None) -> VerifierBackend:
+    """Resolve an explicit backend selector or the default environment selector."""
+    raw_backend = (
+        backend
+        if backend is not None
+        else os.environ.get("PRAGMALENS_VERIFIER", VerifierBackend.OFFLINE)
+    )
+    try:
+        return VerifierBackend(raw_backend)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported verifier backend: {raw_backend!r}") from exc
+
+
+def _selected_model_name(backend: VerifierBackend) -> str | None:
+    """Return the backend-specific model override for runtime construction."""
+    if backend is VerifierBackend.MINICHECK:
+        return os.environ.get("PRAGMALENS_MINICHECK_MODEL", "roberta-large")
+    if backend is VerifierBackend.CROSSENCODER_NLI:
+        return os.environ.get(
+            "PRAGMALENS_CROSSENCODER_MODEL",
+            "cross-encoder/nli-deberta-v3-base",
+        )
+    return None
+
+
+def _selected_cache_dir(backend: VerifierBackend) -> str | None:
+    """Return the backend-specific cache override for runtime construction."""
+    if backend is VerifierBackend.MINICHECK:
+        return os.environ.get("PRAGMALENS_MINICHECK_CACHE_DIR", ".local_state/minicheck-cache")
+    return None
+
+
+def _selected_label_mapping(backend: VerifierBackend) -> Sequence[str] | None:
+    """Return the backend-specific label mapping override for runtime construction."""
+    if backend is VerifierBackend.CROSSENCODER_NLI:
+        return ("contradiction", "entailment", "neutral")
+    return None
+
+
+def _merge_verification_statuses(statuses: Sequence[VerificationStatus]) -> VerificationStatus:
+    """Collapse multiple verifier statuses into one product-facing verdict."""
+    has_supported = any(status is VerificationStatus.SUPPORTED for status in statuses)
+    has_unsupported = any(status is VerificationStatus.UNSUPPORTED for status in statuses)
+    if has_supported and has_unsupported:
+        return VerificationStatus.INSUFFICIENT_EVIDENCE
+    if has_supported:
+        return VerificationStatus.SUPPORTED
+    if has_unsupported:
+        return VerificationStatus.UNSUPPORTED
+    if any(status is VerificationStatus.INSUFFICIENT_EVIDENCE for status in statuses):
+        return VerificationStatus.INSUFFICIENT_EVIDENCE
+    if any(status is VerificationStatus.VERIFIER_ERROR for status in statuses):
+        return VerificationStatus.VERIFIER_ERROR
+    return VerificationStatus.INSUFFICIENT_EVIDENCE
+
+
+def _build_ensemble_rationale(verdicts: Sequence[VerificationVerdict]) -> str:
+    """Render one concise rationale string from member backend outcomes."""
+    return "; ".join(f"{verdict.backend}={verdict.status.value}" for verdict in verdicts)
+
+
+def _merge_evidence_ids(
+    candidate: EvidenceCandidate,
+    verdicts: Sequence[VerificationVerdict],
+) -> list[str]:
+    """Preserve candidate evidence order while unioning member evidence ids."""
+    merged = list(candidate.evidence_refs)
+    for verdict in verdicts:
+        for evidence_id in verdict.evidence_ids:
+            if evidence_id not in merged:
+                merged.append(evidence_id)
+    return merged
+
+
+def _validate_verdict_batch(
+    candidates: Sequence[EvidenceCandidate],
+    verdicts: Sequence[VerificationVerdict],
+) -> None:
+    """Reject backend outputs that do not align with the requested candidate batch."""
+    if len(verdicts) != len(candidates):
+        raise ValueError("signal ensemble verifier returned wrong verdict count")
+    expected_ids = [candidate.candidate_id for candidate in candidates]
+    actual_ids = [verdict.candidate_id for verdict in verdicts]
+    if actual_ids != expected_ids:
+        raise ValueError("signal ensemble verifier returned verdicts for unexpected ids")
+
+
+def _selected_score(
+    verdicts: Sequence[VerificationVerdict], selected_status: VerificationStatus
+) -> VerificationScore | None:
+    """Carry forward a representative score when the ensemble keeps one status."""
+    for verdict in verdicts:
+        if verdict.status is selected_status and verdict.score is not None:
+            return verdict.score
+    return None

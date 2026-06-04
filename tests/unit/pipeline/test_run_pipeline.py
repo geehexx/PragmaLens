@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from pragmalens.core import run_pipeline
 from pragmalens.models import EvidenceCandidate, VerificationStatus, VerificationVerdict
 from pragmalens.pipeline.stage_graph import (
@@ -11,6 +13,8 @@ from pragmalens.pipeline.stage_graph import (
     validate_stage_graph,
 )
 from pragmalens.pipeline.text import is_valid_span
+from pragmalens.verifier import OfflineBaselineVerifier, VerifierBackend
+from pragmalens.verifier_comparison import VerifierComparisonHarness
 
 
 class _UnsupportedVerifier:
@@ -29,6 +33,29 @@ class _UnsupportedVerifier:
                 rationale="insufficient supporting evidence",
                 evidence_ids=candidate.evidence_refs,
                 backend="offline",
+            )
+            for candidate in candidates
+        ]
+
+
+class _SupportedVerifier:
+    backend = VerifierBackend.MINICHECK
+
+    def verify(
+        self,
+        candidates: list[EvidenceCandidate],
+        *,
+        document_id: str,
+        text: str,
+    ) -> list[VerificationVerdict]:
+        del document_id, text
+        return [
+            VerificationVerdict(
+                candidate_id=candidate.candidate_id,
+                status=VerificationStatus.SUPPORTED,
+                rationale="signal ensemble fixture",
+                evidence_ids=candidate.evidence_refs,
+                backend="signal_ensemble",
             )
             for candidate in candidates
         ]
@@ -102,3 +129,31 @@ def test_run_pipeline_surfaces_question_and_actionability_for_unsupported_verdic
     payload = report.model_dump(mode="json")
     assert payload["findings"][0]["question"]
     assert payload["findings"][0]["actionability"]
+
+
+def test_run_pipeline_uses_default_verifier_runtime_for_signal_ensemble(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = VerifierComparisonHarness(
+        selected_backend=VerifierBackend.MINICHECK,
+        verifiers=[OfflineBaselineVerifier(), _SupportedVerifier()],
+    )
+    monkeypatch.setattr(
+        "pragmalens.core.build_default_verifier_runtime",
+        lambda backend=None: (_SupportedVerifier(), harness),
+    )
+
+    report, manifest = run_pipeline(
+        text="# Doc\n\nClaim",
+        document_id="doc-ensemble",
+        input_path="/tmp/doc.md",
+        report_path=str(tmp_path / "report.json"),
+        trace_dir=tmp_path / "trace",
+    )
+
+    assert report.verification
+    assert report.verification[0].backend == "signal_ensemble"
+    assert report.verification_comparison is not None
+    assert report.verification_comparison.selected_backend == VerifierBackend.MINICHECK
+    assert "verification_comparison_json" in manifest.artifacts

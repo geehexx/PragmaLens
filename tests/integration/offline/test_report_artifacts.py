@@ -84,8 +84,8 @@ def test_cli_renders_synthesized_question_and_actionability(
     source.write_text("The team should ship the verifier if evidence is present.", encoding="utf-8")
 
     monkeypatch.setattr(
-        "pragmalens.core.build_verifier_adapter",
-        lambda backend: _UnsupportedVerifier(),
+        "pragmalens.core.build_default_verifier_runtime",
+        lambda backend=None: (_UnsupportedVerifier(), None),
     )
 
     result = CliRunner().invoke(

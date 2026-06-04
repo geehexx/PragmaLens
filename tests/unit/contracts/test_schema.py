@@ -1,7 +1,32 @@
 import json
 from pathlib import Path
 
+from pydantic import BaseModel
+
+from pragmalens.models import (
+    EvidenceCandidate,
+    Finding,
+    NeutralReport,
+    RunManifest,
+    VerificationScore,
+    VerificationVerdict,
+    VerifierBatchComparison,
+    VerifierCalibrationProfile,
+)
+from pragmalens.profiles import ProfileModel
 from pragmalens.schema import export_schema
+
+PUBLIC_MODELS: list[type[BaseModel]] = [
+    EvidenceCandidate,
+    Finding,
+    NeutralReport,
+    RunManifest,
+    VerificationScore,
+    VerificationVerdict,
+    VerifierBatchComparison,
+    VerifierCalibrationProfile,
+    ProfileModel,
+]
 
 
 def test_schema_export_report(tmp_path: Path) -> None:
@@ -27,3 +52,9 @@ def test_schema_export_invalid_model(tmp_path: Path) -> None:
         assert "Unknown model" in str(exc)
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_public_contract_models_do_not_expose_pii_fields() -> None:
+    for model in PUBLIC_MODELS:
+        properties = model.model_json_schema().get("properties", {})
+        assert all("pii" not in name.lower() for name in properties), model.__name__

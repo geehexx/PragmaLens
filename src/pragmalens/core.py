@@ -9,7 +9,7 @@ from pragmalens.pipeline.reporting import build_report_and_manifest, write_trace
 from pragmalens.pipeline.runtime import PipelineRunner, RunContext
 from pragmalens.pipeline.stage_graph import default_v01_stages, validate_stage_graph
 from pragmalens.profiles import load_profile
-from pragmalens.verifier import VerifierAdapter, build_verifier_adapter, build_verifier_from_env
+from pragmalens.verifier import VerifierAdapter, build_default_verifier_runtime
 from pragmalens.verifier_comparison import VerifierComparisonHarness
 
 
@@ -40,15 +40,16 @@ def run_pipeline(
         profile=profile,
     )
     selected_verifier = verifier
+    selected_comparison_harness = comparison_harness
     if selected_verifier is None:
-        selected_verifier = (
-            build_verifier_adapter(verifier_backend)
-            if verifier_backend is not None
-            else build_verifier_from_env()
+        selected_verifier, default_comparison_harness = build_default_verifier_runtime(
+            verifier_backend
         )
+        if selected_comparison_harness is None:
+            selected_comparison_harness = default_comparison_harness
     stages = default_v01_stages(
         verifier=selected_verifier,
-        comparison_harness=comparison_harness,
+        comparison_harness=selected_comparison_harness,
     )
     validate_stage_graph(stages)
     runner = PipelineRunner(stages)

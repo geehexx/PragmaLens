@@ -1,4 +1,4 @@
-"""CLI entrypoints for offline runs, schema export, and optional verifier selection."""
+"""CLI entrypoints for pipeline runs, schema export, and optional verifier selection."""
 
 from __future__ import annotations
 
@@ -48,11 +48,11 @@ def run(
         "--verifier-backend",
         help=(
             "Verifier backend: offline|minicheck|crossencoder_nli. "
-            "Defaults to PRAGMALENS_VERIFIER or offline."
+            "Defaults to PRAGMALENS_VERIFIER, then offline."
         ),
     ),
 ) -> None:
-    """Run the offline PragmaLens pipeline against one Markdown or text input."""
+    """Run the PragmaLens pipeline against one Markdown or text input."""
     src = Path(input)
     if src.suffix.lower() not in {".md", ".txt"}:
         raise typer.BadParameter("input must be markdown (.md) or plain text (.txt)")
