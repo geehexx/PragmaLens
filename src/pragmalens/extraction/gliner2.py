@@ -78,11 +78,11 @@ def normalize_gliner2_output_with_quarantine(
     """Normalize captured GLiNER2 output and quarantine malformed entities."""
     candidates: list[EvidenceCandidate] = []
     quarantined: list[EvidenceCandidate] = []
-    entities = payload.get("entities", [])
+    entities = list(_iter_entities(payload))
     relations = payload.get("relations", [])
     mapping = label_map or {}
 
-    for idx, ent in enumerate(entities):
+    for idx, (ent, raw_label_hint) in enumerate(entities):
         if not isinstance(ent, dict):
             quarantined.append(
                 _quarantine_gliner2_entity(
@@ -94,10 +94,9 @@ def normalize_gliner2_output_with_quarantine(
                 )
             )
             continue
-        try:
-            start = int(ent["start_char"])
-            end = int(ent["end_char"])
-        except KeyError:
+        start_value = ent.get("start_char", ent.get("start"))
+        end_value = ent.get("end_char", ent.get("end"))
+        if start_value is None or end_value is None:
             quarantined.append(
                 _quarantine_gliner2_entity(
                     ent,
@@ -108,6 +107,9 @@ def normalize_gliner2_output_with_quarantine(
                 )
             )
             continue
+        try:
+            start = int(start_value)
+            end = int(end_value)
         except (TypeError, ValueError):
             quarantined.append(
                 _quarantine_gliner2_entity(
@@ -130,7 +132,7 @@ def normalize_gliner2_output_with_quarantine(
                 )
             )
             continue
-        raw_label_value = ent.get("label", "unknown")
+        raw_label_value = raw_label_hint or ent.get("label", "unknown")
         raw_label = (
             raw_label_value if isinstance(raw_label_value, str) and raw_label_value else "unknown"
         )
@@ -164,3 +166,19 @@ def normalize_gliner2_output_with_quarantine(
             )
         )
     return GLiNER2NormalizationResult(valid=candidates, quarantined=quarantined)
+
+
+def _iter_entities(payload: dict[str, Any]) -> list[tuple[Any, str | None]]:
+    """Yield GLiNER2 entities from either the live label map or a flat list."""
+    entities = payload.get("entities", [])
+    if isinstance(entities, dict):
+        flattened: list[tuple[Any, str | None]] = []
+        for label, label_entities in entities.items():
+            if not isinstance(label_entities, list):
+                label_entities = [label_entities]
+            for entity in label_entities:
+                flattened.append((entity, label if isinstance(label, str) else None))
+        return flattened
+    if isinstance(entities, list):
+        return [(entity, None) for entity in entities]
+    return []

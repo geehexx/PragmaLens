@@ -1,0 +1,110 @@
+{
+  "golden_set_id": "pragmalens-golden-2026-06",
+  "cases": [
+    {
+      "case_id": "recommendation-not-promise",
+      "document_id": "golden-001",
+      "document_text": "The team should ship the verifier if evidence is present.",
+      "annotations": [
+        {
+          "label": "promise",
+          "span": {
+            "document_id": "golden-001",
+            "start_char": 9,
+            "end_char": 56,
+            "text": "should ship the verifier if evidence is present"
+          },
+          "resolved_to": "recommendation",
+          "notes": [
+            "Modal 'should' marks a recommendation, not a promise."
+          ]
+        },
+        {
+          "label": "review_commitment",
+          "span": {
+            "document_id": "golden-001",
+            "start_char": 16,
+            "end_char": 33,
+            "text": "ship the verifier"
+          },
+          "resolved_to": "review_commitment",
+          "notes": [
+            "Keep the review action separate from the modal recommendation."
+          ]
+        },
+        {
+          "label": "team_membership",
+          "span": {
+            "document_id": "golden-001",
+            "start_char": 0,
+            "end_char": 8,
+            "text": "The team"
+          },
+          "resolved_to": "ambiguous",
+          "notes": [
+            "Do not infer any individual membership from sentence adjacency."
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "promise-review-ambiguity",
+      "document_id": "golden-002",
+      "document_text": "Alice promised to ship the report tomorrow. The team will review the draft before Friday.",
+      "annotations": [
+        {
+          "label": "promise",
+          "span": {
+            "document_id": "golden-002",
+            "start_char": 6,
+            "end_char": 42,
+            "text": "promised to ship the report tomorrow"
+          },
+          "resolved_to": "promise",
+          "notes": [
+            "This is an explicit promise, not a recommendation."
+          ]
+        },
+        {
+          "label": "review_commitment",
+          "span": {
+            "document_id": "golden-002",
+            "start_char": 53,
+            "end_char": 88,
+            "text": "will review the draft before Friday"
+          },
+          "resolved_to": "commitment",
+          "notes": [
+            "The review action is a separate commitment from the promise."
+          ]
+        },
+        {
+          "label": "antecedent_resolution",
+          "span": {
+            "document_id": "golden-002",
+            "start_char": 0,
+            "end_char": 5,
+            "text": "Alice"
+          },
+          "resolved_to": "Alice",
+          "notes": [
+            "The antecedent for the promise is explicit."
+          ]
+        },
+        {
+          "label": "team_membership",
+          "span": {
+            "document_id": "golden-002",
+            "start_char": 44,
+            "end_char": 52,
+            "text": "The team"
+          },
+          "resolved_to": "ambiguous",
+          "notes": [
+            "Do not assume Alice is part of the team from the previous sentence."
+          ]
+        }
+      ]
+    }
+  ]
+}

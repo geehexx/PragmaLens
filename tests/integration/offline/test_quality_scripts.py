@@ -34,3 +34,10 @@ def test_lane_alignment_script_passes() -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "PASS:" in result.stdout
+
+
+def test_security_scan_alignment_script_passes() -> None:
+    result = _run_script("scripts/check_security_scan_alignment.py")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "PASS:" in result.stdout

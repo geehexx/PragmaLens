@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from time import perf_counter
 from typing import Any, Protocol
 
 from pragmalens.models import EvidenceCandidate
@@ -31,6 +32,7 @@ class StageResult:
 
     stage_id: str
     status: str
+    duration_ms: float | None = None
     warnings: list[str] = field(default_factory=list)
 
 
@@ -56,4 +58,10 @@ class PipelineRunner:
 
     def run(self, context: RunContext) -> list[StageResult]:
         """Run every stage in order and collect per-stage results."""
-        return [stage.run(context) for stage in self.stages]
+        results: list[StageResult] = []
+        for stage in self.stages:
+            started = perf_counter()
+            result = stage.run(context)
+            result.duration_ms = (perf_counter() - started) * 1000.0
+            results.append(result)
+        return results

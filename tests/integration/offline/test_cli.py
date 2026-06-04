@@ -173,7 +173,15 @@ def test_cli_benchmark_produces_calibration_report_and_sidecar(
 
     assert report["run_id"] == "benchmark-run"
     assert {summary_entry["backend"] for summary_entry in report["summaries"]} == {"offline"}
-    assert metadata["corpus_id"] == "CORPUS-CAND-001"
+    assert metadata["corpus_id"] == "ragtruth-15592-mini"
     assert metadata["selected_backend"] == "offline"
     assert metadata["approval_status"] == "approved"
+    assert metadata["case_count"] == 2
+    assert metadata["approval_evidence"] == [
+        "upstream dataset source_id 15592 from RAGTruth source_info.jsonl",
+        (
+            "upstream response id 0 is supported and response id 2 contains the explicit "
+            "2022 hallucination"
+        ),
+    ]
     assert summary.startswith("# Corpus Benchmark: RAGTruth")

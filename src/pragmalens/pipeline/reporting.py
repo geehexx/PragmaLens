@@ -59,6 +59,7 @@ def build_report_and_manifest(
             "run_manifest_json": str(Path(report_path).with_name("run_manifest.json")),
             "trace_dir": str(trace_dir),
             "trace_manifest_json": str(trace_dir / "trace_manifest.json"),
+            "stage_timings_json": str(trace_dir / "stage_timings.json"),
         },
     )
     if context.metadata.get("verification_comparison") is not None:
@@ -88,6 +89,20 @@ def write_traces(trace_dir: Path, context: RunContext, stage_results: list[Stage
         dump("verification_comparison.json", comparison.model_dump(mode="json"))
     dump("findings.json", context.artifacts.get("synthesize_findings", {}))
     dump("report_rendering.json", context.artifacts.get("render_reports_and_traces", {}))
+    stage_timings = {
+        "run_id": f"run-{context.document_id}",
+        "document_id": context.document_id,
+        "total_duration_ms": round(sum(result.duration_ms or 0.0 for result in stage_results), 3),
+        "stages": [
+            {
+                "stage_id": result.stage_id,
+                "status": result.status,
+                "duration_ms": round(result.duration_ms or 0.0, 3),
+            }
+            for result in stage_results
+        ],
+    }
+    dump("stage_timings.json", stage_timings)
     dump(
         "quarantined_candidates.json",
         [candidate.model_dump(mode="json") for candidate in context.quarantined_candidates],
@@ -99,6 +114,22 @@ def write_traces(trace_dir: Path, context: RunContext, stage_results: list[Stage
             "run_id": f"run-{context.document_id}",
             "document_id": context.document_id,
             "trace_dir": str(trace_dir),
+            "total_duration_ms": round(
+                sum(result.duration_ms or 0.0 for result in stage_results), 3
+            ),
             "files": sorted(path.name for path in trace_dir.iterdir() if path.is_file()),
         },
     )
+
+
+def finalize_trace_durations(trace_dir: Path, total_duration_ms: float) -> None:
+    """Patch the end-to-end pipeline duration into the timing artifacts."""
+    rounded_total = round(total_duration_ms, 3)
+    stage_timings_path = trace_dir / "stage_timings.json"
+    trace_manifest_path = trace_dir / "trace_manifest.json"
+    stage_timings = json.loads(stage_timings_path.read_text(encoding="utf-8"))
+    trace_manifest = json.loads(trace_manifest_path.read_text(encoding="utf-8"))
+    stage_timings["total_duration_ms"] = rounded_total
+    trace_manifest["total_duration_ms"] = rounded_total
+    stage_timings_path.write_text(json.dumps(stage_timings, indent=2) + "\n", encoding="utf-8")
+    trace_manifest_path.write_text(json.dumps(trace_manifest, indent=2) + "\n", encoding="utf-8")

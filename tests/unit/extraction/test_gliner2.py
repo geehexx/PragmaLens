@@ -52,6 +52,44 @@ def test_gliner2_invalid_span_is_quarantined() -> None:
     assert normalized.quarantined[0].warnings == ["invalid_char_interval"]
 
 
+def test_gliner2_live_captured_payload_flattens_label_groups() -> None:
+    payload = {
+        "entities": {
+            "agent": [
+                {"text": "Alice", "confidence": 0.9956095814704895, "start": 0, "end": 5},
+            ],
+            "action": [
+                {"text": "review", "confidence": 0.7919526696205139, "start": 58, "end": 64},
+                {
+                    "text": "ship the report",
+                    "confidence": 0.6691595911979675,
+                    "start": 18,
+                    "end": 33,
+                },
+            ],
+            "condition": [],
+        }
+    }
+
+    candidates = normalize_gliner2_output(
+        payload,
+        "Alice promised to ship the report tomorrow. The team will review the draft before Friday.",
+        document_id="doc",
+        label_map={"agent": "commitment_owner", "action": "commitment_action"},
+    )
+
+    assert [candidate.label for candidate in candidates] == [
+        "commitment_owner",
+        "commitment_action",
+        "commitment_action",
+    ]
+    assert [candidate.span.text for candidate in candidates] == [
+        "Alice",
+        "review",
+        "ship the report",
+    ]
+
+
 @pytest.mark.parametrize(
     ("entity", "warning"),
     [

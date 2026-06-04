@@ -76,14 +76,24 @@ uv run nox -s dev-live
 
 ## Security Scan
 
-- Local binary (if installed):
+- CI runs a tree-only scan of the checked-out workspace with the pinned
+  `DariuszPorowski/github-action-gitleaks@a027585cb1f2780aa441f20f4d0aabf8b1a0d90e`
+  action.
+
+- Local tree scan:
 
 ```bash
 gitleaks dir . --config .gitleaks.toml
+```
+
+- Optional local history scan:
+
+```bash
 gitleaks git --config .gitleaks.toml
 ```
 
-- CI uses `.github/workflows/ci.yml` and `.gitleaks.toml`.
+- CI uses `.github/workflows/ci.yml` and the tree-only `gitleaks dir` mode;
+  the history scan is local-only when you need to inspect committed history.
 
 ## Offline-first and live smoke separation
 
@@ -114,6 +124,8 @@ silently skipped.
 ```bash
 uv run python -m spacy download en_core_web_sm
 uv run python -m spacy validate
+uv run python -m nltk.downloader punkt_tab
+ollama pull qwen3.5:0.8b
 ```
 
 `uv sync` installs the minimal default development environment only. Live and QA tooling are opt-in so the default install stays cheap and offline-first.
@@ -163,6 +175,12 @@ uv sync --group live --group qa
   - `PRAGMALENS_MINICHECK_MODEL`
   - `PRAGMALENS_MINICHECK_CACHE_DIR`
   - `PRAGMALENS_CROSSENCODER_MODEL`
+- The live pipeline trace now records per-stage timing in `trace/stage_timings.json`
+  and an end-to-end `total_duration_ms` in `trace/trace_manifest.json` after
+  report and trace emission complete.
+
+GLiNER2 and MiniCheck download weights on first use. MiniCheck caches under
+`PRAGMALENS_MINICHECK_CACHE_DIR` when set, otherwise `.local_state/minicheck-cache`.
 
 Default CI stays offline for the core lanes and also includes a bounded CPU-safe live-verifier slice for MiniCheck and CrossEncoder.
 
@@ -179,6 +197,23 @@ uv run pragmalens benchmark \
   --summary-out out/benchmark/summary.md \
   --selected-backend offline
 ```
+
+The pipeline trace emitted by `pragmalens run` now includes stage timing
+metadata alongside the normal JSON trace files, so duration regressions can be
+compared across runs.
+
+## Semantic Golden Set
+
+Use the internal golden set to keep promise/review/antecedent ambiguity explicit:
+
+```bash
+uv run python scripts/refresh_captured_assets.py golden-set
+uv run pytest -q tests/unit/evaluation/test_golden_set.py
+```
+
+The golden set is intentionally small and reviewable. It exists to catch cases
+where the system incorrectly infers a promise from a recommendation or assumes
+team membership from sentence adjacency alone.
 
 ## License
 

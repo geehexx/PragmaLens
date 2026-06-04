@@ -1,0 +1,24 @@
+{
+  "capture_name": "pragmalens-live-capture:v1",
+  "input_path": "src/pragmalens/fixtures/captured/input.md",
+  "document_id": "captured-input",
+  "langextract": {
+    "provider": "ollama",
+    "model": "qwen3.5:0.8b",
+    "prompt_description": "Extract the actor and the commitment phrase.",
+    "example_set": "pragmalens-live-capture:v1",
+    "prompt_hash": "sha256:e38173b7d773c7f5c7dd3fc2a23ab7f541691449cbed44aefc7bcc39451dff48"
+  },
+  "gliner2": {
+    "model": "fastino/gliner2-base-v1",
+    "labels": [
+      "agent",
+      "action",
+      "condition"
+    ]
+  },
+  "outputs": [
+    "langextract.jsonl",
+    "gliner2.json"
+  ]
+}

@@ -71,6 +71,16 @@ class CrossEncoderModel(Protocol):
         ...
 
 
+def _backend_for_verifier(verifier: VerifierAdapter) -> VerifierBackend:
+    """Infer a concrete backend enum from one verifier implementation."""
+    backend = getattr(verifier, "backend", None)
+    if isinstance(backend, VerifierBackend):
+        return backend
+    if isinstance(backend, str):
+        return VerifierBackend(backend)
+    raise ValueError(f"unsupported verifier adapter: {type(verifier)!r}")
+
+
 class OfflineBaselineVerifier:
     """Deterministic offline verifier used until live adapters are introduced."""
 
@@ -116,11 +126,24 @@ class SignalEnsembleVerifier:
     backend = "signal_ensemble"
     model_name = "signal-ensemble"
 
-    def __init__(self, verifiers: Sequence[VerifierAdapter]) -> None:
+    def __init__(
+        self,
+        verifiers: Sequence[VerifierAdapter],
+        *,
+        selected_backend: VerifierBackend | str | None = None,
+    ) -> None:
         """Preserve the configured verifier order for deterministic combination."""
         self._verifiers = list(verifiers)
         if not self._verifiers:
             raise ValueError("signal ensemble requires at least one verifier")
+        self.selected_backend = (
+            VerifierBackend(selected_backend) if selected_backend is not None else None
+        )
+        if self.selected_backend is not None:
+            configured_backends = [_backend_for_verifier(verifier) for verifier in self._verifiers]
+            if self.selected_backend not in configured_backends:
+                raise ValueError(f"selected backend {self.selected_backend!r} is not configured")
+        self._last_verdicts_by_backend: dict[VerifierBackend, list[VerificationVerdict]] = {}
 
     def verify(
         self,
@@ -130,13 +153,17 @@ class SignalEnsembleVerifier:
         text: str,
     ) -> list[VerificationVerdict]:
         """Combine backend verdicts using the current conservative precedence rules."""
-        batches = [
-            self._validated_verdict_batch(
+        batches_by_backend: dict[VerifierBackend, list[VerificationVerdict]] = {}
+        batches = []
+        for verifier in self._verifiers:
+            backend = _backend_for_verifier(verifier)
+            batch = self._validated_verdict_batch(
                 verifier.verify(candidates, document_id=document_id, text=text),
                 candidates,
             )
-            for verifier in self._verifiers
-        ]
+            batches_by_backend[backend] = batch
+            batches.append(batch)
+        self._last_verdicts_by_backend = batches_by_backend
         verdicts: list[VerificationVerdict] = []
         for index, candidate in enumerate(candidates):
             candidate_verdicts = [batch[index] for batch in batches]
@@ -155,6 +182,24 @@ class SignalEnsembleVerifier:
                 )
             )
         return verdicts
+
+    def selected_backend_adapter(self) -> VerifierAdapter:
+        """Expose the concrete backend selected for comparison and calibration."""
+        if self.selected_backend is None:
+            raise ValueError("signal ensemble does not declare a selected backend")
+        for verifier in self._verifiers:
+            if _backend_for_verifier(verifier) is self.selected_backend:
+                return verifier
+        raise ValueError(f"selected backend {self.selected_backend!r} is not configured")
+
+    def selected_backend_verdicts(self) -> list[VerificationVerdict]:
+        """Return the cached verdicts for the selected concrete backend."""
+        if self.selected_backend is None:
+            raise ValueError("signal ensemble does not declare a selected backend")
+        verdicts = self._last_verdicts_by_backend.get(self.selected_backend)
+        if verdicts is None:
+            raise ValueError("signal ensemble has no cached selected backend verdicts")
+        return list(verdicts)
 
     @staticmethod
     def _validated_verdict_batch(
@@ -488,7 +533,7 @@ def build_default_verifier_runtime(
     verifiers = [offline, live]
     comparison_module = import_module("pragmalens.verifier_comparison")
     return (
-        SignalEnsembleVerifier(verifiers),
+        SignalEnsembleVerifier(verifiers, selected_backend=selected),
         comparison_module.VerifierComparisonHarness(
             selected_backend=selected,
             verifiers=verifiers,

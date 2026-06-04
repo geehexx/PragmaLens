@@ -19,8 +19,12 @@ from pragmalens.verifier import (
     CrossEncoderNliVerifier,
     MiniCheckVerifier,
     OfflineBaselineVerifier,
+    SignalEnsembleVerifier,
+    VerifierBackend,
 )
 from pragmalens.verifier_calibration import VerifierCalibrationCase
+
+_FIXTURES = Path("tests/fixtures")
 
 
 class _MiniCheckScorer:
@@ -92,54 +96,40 @@ def _approval(
     )
 
 
-def test_load_corpus_benchmark_batch_round_trips_fixture(tmp_path: Path) -> None:
-    path = tmp_path / "batch.json"
-    path.write_text(
-        """
-{
-  "corpus_id": "CORPUS-CAND-001",
-  "cases": [
-    {
-      "case_id": "supported",
-      "document_id": "doc",
-      "document_text": "supported claim",
-      "claim_text": "supported claim",
-      "gold_status": "supported"
-    }
-  ]
-}
-""".strip(),
-        encoding="utf-8",
+def test_load_corpus_benchmark_batch_round_trips_fixture() -> None:
+    batch = load_corpus_benchmark_batch(_FIXTURES / "corpus_benchmark_ragtruth.json")
+
+    assert batch.corpus_id == "ragtruth-15592-mini"
+    assert [case.case_id for case in batch.cases] == [
+        "ragtruth-15592-r0-supported",
+        "ragtruth-15592-r2-unsupported",
+    ]
+    assert batch.cases[0].document_id == "ragtruth-15592"
+    assert (
+        batch.cases[0].claim_text == "Anne and Margot Frank probably did not survive to March 1945."
+    )
+    assert (
+        batch.cases[1].claim_text
+        == "Anne and Margot Frank are believed to have died before February 7, 2022."
     )
 
-    batch = load_corpus_benchmark_batch(path)
 
-    assert batch.corpus_id == "CORPUS-CAND-001"
-    assert batch.cases[0].case_id == "supported"
-
-
-def test_load_corpus_approval_metadata_round_trips_fixture(tmp_path: Path) -> None:
-    path = tmp_path / "approval.json"
-    path.write_text(
-        """
-{
-  "corpus_id": "CORPUS-CAND-001",
-  "corpus_name": "RAGTruth",
-  "corpus_version": "2024-02",
-  "source_uri": "https://github.com/ParticleMedia/RAGTruth",
-  "approval_status": "approved",
-  "approval_evidence": [
-    "public repository README and MIT license"
-  ]
-}
-""".strip(),
-        encoding="utf-8",
-    )
-
-    approval = load_corpus_approval_metadata(path)
+def test_load_corpus_approval_metadata_round_trips_fixture() -> None:
+    approval = load_corpus_approval_metadata(_FIXTURES / "corpus_approval_ragtruth.json")
 
     assert approval.approval_status == "approved"
-    assert approval.approval_evidence == ["public repository README and MIT license"]
+    assert approval.approval_evidence == [
+        "upstream dataset source_id 15592 from RAGTruth source_info.jsonl",
+        (
+            "upstream response id 0 is supported and response id 2 contains the explicit "
+            "2022 hallucination"
+        ),
+    ]
+    assert approval.corpus_id == "ragtruth-15592-mini"
+    assert (
+        approval.source_uri
+        == "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/main/dataset/source_info.jsonl"
+    )
 
 
 def test_run_corpus_benchmark_rejects_unapproved_corpus() -> None:
@@ -226,6 +216,33 @@ def test_run_corpus_benchmark_can_compare_crossencoder_live_backend() -> None:
     assert recommendation.backend == "crossencoder_nli"
 
 
+def test_run_corpus_benchmark_accepts_signal_ensemble_runtime_helper() -> None:
+    selected_verifier = MiniCheckVerifier(
+        _MiniCheckScorer(
+            {
+                "supported claim": 0.91,
+                "unsupported claim": 0.08,
+            }
+        ),
+        model_name="mini-fixture",
+    )
+    ensemble = SignalEnsembleVerifier(
+        [OfflineBaselineVerifier(), selected_verifier],
+        selected_backend=VerifierBackend.MINICHECK,
+    )
+
+    report, metadata, recommendation = run_corpus_benchmark(
+        _batch(),
+        _approval(),
+        selected_verifier=ensemble,
+        run_id="signal-ensemble-benchmark",
+    )
+
+    assert metadata.selected_backend == "minicheck"
+    assert {summary.backend for summary in report.summaries} == {"offline", "minicheck"}
+    assert recommendation.backend == "minicheck"
+
+
 def test_render_corpus_benchmark_summary_includes_core_fields() -> None:
     report, metadata, recommendation = run_corpus_benchmark(
         _batch(),
@@ -242,45 +259,14 @@ def test_render_corpus_benchmark_summary_includes_core_fields() -> None:
 
 
 def test_run_corpus_benchmark_files_loads_inputs_and_emits_results(tmp_path: Path) -> None:
-    batch_path = tmp_path / "batch.json"
-    approval_path = tmp_path / "approval.json"
-    batch_path.write_text(
-        """
-{
-  "corpus_id": "CORPUS-CAND-001",
-  "cases": [
-    {
-      "case_id": "supported",
-      "document_id": "doc",
-      "document_text": "supported claim",
-      "claim_text": "supported claim",
-      "gold_status": "supported"
-    }
-  ]
-}
-""".strip(),
-        encoding="utf-8",
-    )
-    approval_path.write_text(
-        """
-{
-  "corpus_id": "CORPUS-CAND-001",
-  "corpus_name": "RAGTruth",
-  "corpus_version": "2024-02",
-  "source_uri": "https://github.com/ParticleMedia/RAGTruth",
-  "approval_status": "approved",
-  "approval_evidence": ["public repository README and MIT license"]
-}
-""".strip(),
-        encoding="utf-8",
-    )
-
     report, metadata, recommendation = run_corpus_benchmark_files(
-        corpus_batch_path=batch_path,
-        approval_metadata_path=approval_path,
+        corpus_batch_path=_FIXTURES / "corpus_benchmark_ragtruth.json",
+        approval_metadata_path=_FIXTURES / "corpus_approval_ragtruth.json",
         run_id="files-run",
     )
 
     assert report.run_id == "files-run"
     assert metadata.run_id == "files-run"
+    assert metadata.case_count == 2
     assert recommendation.backend == "offline"
+    assert metadata.corpus_id == "ragtruth-15592-mini"

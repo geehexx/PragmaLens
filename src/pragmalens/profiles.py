@@ -1,4 +1,4 @@
-"""Profile loading and validation for fixture-backed pipeline runs."""
+"""Profile loading and validation for captured fixture-backed pipeline runs."""
 
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ class Profile:
 
 DEFAULT_PROFILE = {
     "name": "default",
-    "langextract_fixture": "tests/fixtures/langextract_sample.jsonl",
-    "gliner2_fixture": "tests/fixtures/gliner2_sample.json",
+    "langextract_fixture": "captured/langextract.jsonl",
+    "gliner2_fixture": "captured/gliner2.json",
     "label_map": {
         "agent": "commitment_owner",
         "action": "commitment_action",

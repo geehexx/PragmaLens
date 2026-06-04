@@ -9,11 +9,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from pragmalens.models import VerificationStatus, VerifierCalibrationRecommendation
+from pragmalens.models import SpanRef, VerificationStatus, VerifierCalibrationRecommendation
 from pragmalens.verifier import (
     CrossEncoderNliVerifier,
     MiniCheckVerifier,
     OfflineBaselineVerifier,
+    SignalEnsembleVerifier,
     VerifierAdapter,
     VerifierBackend,
     build_verifier_adapter,
@@ -26,6 +27,12 @@ from pragmalens.verifier_calibration import (
 from pragmalens.verifier_comparison import CalibrationExample, recommend_calibration
 
 ApprovalStatus = Literal["approved", "pending", "rejected"]
+GoldenAnnotationLabel = Literal[
+    "promise",
+    "review_commitment",
+    "antecedent_resolution",
+    "team_membership",
+]
 
 
 class CorpusBenchmarkBatch(BaseModel):
@@ -50,6 +57,37 @@ class CorpusApprovalMetadata(BaseModel):
     source_uri: str = Field(min_length=1)
     approval_status: ApprovalStatus
     approval_evidence: list[str] = Field(default_factory=list)
+
+
+class GoldenSetAnnotation(BaseModel):
+    """Explicit semantic annotation used by the internal golden set."""
+
+    label: GoldenAnnotationLabel
+    span: SpanRef
+    resolved_to: str | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class GoldenSetCase(BaseModel):
+    """One labeled semantic regression case for the internal golden set."""
+
+    case_id: str = Field(min_length=1)
+    document_id: str = Field(min_length=1)
+    document_text: str = Field(min_length=1)
+    annotations: list[GoldenSetAnnotation] = Field(default_factory=list)
+
+
+class GoldenSetBatch(BaseModel):
+    """Approved semantic-gold set grouped under one internal identifier."""
+
+    golden_set_id: str = Field(min_length=1)
+    cases: list[GoldenSetCase] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_cases(self) -> GoldenSetBatch:
+        if not self.cases:
+            raise ValueError("golden set must include at least one case")
+        return self
 
 
 class CorpusBenchmarkRunMetadata(BaseModel):
@@ -82,6 +120,14 @@ def load_corpus_approval_metadata(path: str | Path) -> CorpusApprovalMetadata:
     return CorpusApprovalMetadata.model_validate(payload)
 
 
+def load_golden_set_batch(path: str | Path) -> GoldenSetBatch:
+    """Load a semantic golden set from a JSON object on disk."""
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("golden set file must contain a JSON object")
+    return GoldenSetBatch.model_validate(payload)
+
+
 def run_corpus_benchmark(
     batch: CorpusBenchmarkBatch,
     approval: CorpusApprovalMetadata,
@@ -102,11 +148,14 @@ def run_corpus_benchmark(
             raise ValueError("selected backend must match the selected verifier")
     _validate_corpus_gate(batch, approval)
     verifier = selected_verifier or build_verifier_adapter(backend)
+    benchmark_verifier = _benchmark_verifier_for(verifier)
     calibration_cases = list(batch.cases)
     resolved_run_id = run_id or f"{batch.corpus_id}-{backend.value}"
-    report = _compare_benchmark_backends(calibration_cases, verifier, backend, resolved_run_id)
+    report = _compare_benchmark_backends(
+        calibration_cases, benchmark_verifier, backend, resolved_run_id
+    )
     recommendation = recommend_calibration(
-        verifier,
+        benchmark_verifier,
         _to_calibration_examples(calibration_cases),
         evidence_source=approval.source_uri,
     )
@@ -219,6 +268,10 @@ def _resolve_selected_backend(
     """Resolve the benchmark backend from an explicit selector or the injected verifier."""
     if selected_backend is not None:
         return VerifierBackend(selected_backend)
+    if isinstance(selected_verifier, SignalEnsembleVerifier):
+        if selected_verifier.selected_backend is None:
+            raise ValueError("signal ensemble verifier does not declare a selected backend")
+        return selected_verifier.selected_backend
     if selected_verifier is not None:
         backend = getattr(selected_verifier, "backend", None)
         if isinstance(backend, VerifierBackend):
@@ -226,6 +279,13 @@ def _resolve_selected_backend(
         if isinstance(backend, str):
             return VerifierBackend(backend)
     return VerifierBackend.OFFLINE
+
+
+def _benchmark_verifier_for(verifier: VerifierAdapter) -> VerifierAdapter:
+    """Resolve the concrete backend adapter that benchmark helpers should compare."""
+    if isinstance(verifier, SignalEnsembleVerifier):
+        return verifier.selected_backend_adapter()
+    return verifier
 
 
 def _compare_benchmark_backends(

@@ -5,7 +5,7 @@ from pragmalens.extraction.gliner2 import (
     normalize_gliner2_output,
     normalize_gliner2_output_with_quarantine,
 )
-from pragmalens.extraction.io import load_json, load_jsonl
+from pragmalens.extraction.io import load_json, load_jsonl, resolve_data_path
 from pragmalens.extraction.langextract import normalize_langextract_records
 from pragmalens.extraction.normalize import (
     CandidateNormalizationResult,
@@ -23,4 +23,5 @@ __all__ = [
     "normalize_gliner2_output",
     "normalize_gliner2_output_with_quarantine",
     "normalize_langextract_records",
+    "resolve_data_path",
 ]
