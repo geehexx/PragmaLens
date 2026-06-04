@@ -26,7 +26,7 @@ LIVE_VERIFIER_SNIPPETS = (
     '"pytest"',
     '"tests/live_smoke/test_runtime_backends.py"',
     '"-k"',
-    '"minicheck or crossencoder"',
+    '"minicheck"',
 )
 
 
@@ -103,7 +103,7 @@ def _check_noxfile() -> None:
     if "lint-imports" not in nox_text:
         fail("nox lint session no longer runs import-linter")
     if not all(snippet in nox_text for snippet in LIVE_VERIFIER_SNIPPETS):
-        fail("live-verifier nox session is not pinned to the CPU-safe live verifier slice")
+        fail("live-verifier nox session is not pinned to the CPU-safe minicheck slice")
     ok("nox sessions match the trimmed lane surface")
 
 
