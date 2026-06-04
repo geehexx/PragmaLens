@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from pragmalens.evaluation import (
     ApprovalStatus,
@@ -82,6 +84,7 @@ def _batch() -> CorpusBenchmarkBatch:
 def _approval(
     status: ApprovalStatus = "approved",
     corpus_id: str = "CORPUS-CAND-001",
+    approval_evidence: list[str] | None = None,
 ) -> CorpusApprovalMetadata:
     return CorpusApprovalMetadata(
         corpus_id=corpus_id,
@@ -89,7 +92,9 @@ def _approval(
         corpus_version="2024-02",
         source_uri="https://github.com/ParticleMedia/RAGTruth",
         approval_status=status,
-        approval_evidence=[
+        approval_evidence=approval_evidence
+        if approval_evidence is not None
+        else [
             "public repository README and MIT license",
             "open-access ACL paper and dataset release history",
         ],
@@ -141,11 +146,43 @@ def test_run_corpus_benchmark_rejects_unapproved_corpus() -> None:
         )
 
 
+@given(
+    status=st.sampled_from(["pending", "rejected"]),
+    approval_evidence=st.lists(st.text(min_size=1, max_size=30), min_size=1, max_size=3),
+)
+@settings(max_examples=20)
+def test_run_corpus_benchmark_rejects_any_non_approved_status(
+    status: ApprovalStatus,
+    approval_evidence: list[str],
+) -> None:
+    with pytest.raises(ValueError, match="approved"):
+        run_corpus_benchmark(
+            _batch(),
+            _approval(status=status, approval_evidence=approval_evidence),
+            selected_verifier=OfflineBaselineVerifier(),
+        )
+
+
 def test_run_corpus_benchmark_rejects_corpus_id_mismatch() -> None:
     with pytest.raises(ValueError, match="corpus id mismatch"):
         run_corpus_benchmark(
             _batch(),
             _approval(corpus_id="other"),
+            selected_verifier=OfflineBaselineVerifier(),
+        )
+
+
+@given(
+    corpus_id=st.from_regex(r"[A-Za-z0-9][A-Za-z0-9_-]{0,23}", fullmatch=True).filter(
+        lambda value: value != "CORPUS-CAND-001"
+    )
+)
+@settings(max_examples=20)
+def test_run_corpus_benchmark_rejects_any_corpus_id_mismatch(corpus_id: str) -> None:
+    with pytest.raises(ValueError, match="corpus id mismatch"):
+        run_corpus_benchmark(
+            _batch(),
+            _approval(corpus_id=corpus_id),
             selected_verifier=OfflineBaselineVerifier(),
         )
 

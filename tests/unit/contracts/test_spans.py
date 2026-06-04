@@ -1,13 +1,22 @@
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from pragmalens.models import SpanRef
 
 
-def test_valid_span_roundtrip() -> None:
-    text = "claim"
-    span = SpanRef(document_id="doc-1", start_char=0, end_char=5, text=text)
-    assert span.end_char - span.start_char == len(span.text)
+@given(
+    document_id=st.text(min_size=1, max_size=20),
+    text=st.text(min_size=1, max_size=20),
+)
+@settings(max_examples=50)
+def test_valid_span_roundtrip(document_id: str, text: str) -> None:
+    span = SpanRef(document_id=document_id, start_char=0, end_char=len(text), text=text)
+
+    payload = span.model_dump(mode="json")
+    assert payload["end_char"] - payload["start_char"] == len(payload["text"])
+    assert SpanRef.model_validate(payload).model_dump(mode="json") == payload
 
 
 @pytest.mark.parametrize(

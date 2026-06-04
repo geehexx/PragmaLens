@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import importlib
 import sys
+from typing import Any, cast
 
 import pytest
 
@@ -20,10 +21,10 @@ def test_package_root_import_does_not_require_pydantic(
 ) -> None:
     real_import = builtins.__import__
 
-    def _guarded_import(name: str, *args: object, **kwargs: object) -> object:
+    def _guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
         if name == "pydantic" or name.startswith("pydantic."):
             raise AssertionError("package root import should not require pydantic")
-        return real_import(name, *args, **kwargs)
+        return cast(Any, real_import)(name, *args, **kwargs)
 
     monkeypatch.delitem(sys.modules, "pragmalens", raising=False)
     monkeypatch.delitem(sys.modules, "pragmalens.models", raising=False)

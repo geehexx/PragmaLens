@@ -131,10 +131,20 @@ def test_build_verifier_adapter_returns_offline_without_loading_settings(
 def test_build_verifier_adapter_uses_explicit_minicheck_overrides_without_settings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sentinel = object()
+    captured: dict[str, str] = {}
+
+    def _fake_build_minicheck_from_runtime(
+        *,
+        model_name: str,
+        cache_dir: str,
+    ) -> OfflineBaselineVerifier:
+        captured["model_name"] = model_name
+        captured["cache_dir"] = cache_dir
+        return OfflineBaselineVerifier()
+
     monkeypatch.setattr(
         "pragmalens.verifier._build_minicheck_from_runtime",
-        lambda **kwargs: (sentinel, kwargs),
+        _fake_build_minicheck_from_runtime,
     )
     monkeypatch.setattr(
         "pragmalens.verifier.load_settings",
@@ -143,14 +153,14 @@ def test_build_verifier_adapter_uses_explicit_minicheck_overrides_without_settin
         ),
     )
 
-    verifier, kwargs = build_verifier_adapter(
+    verifier = build_verifier_adapter(
         VerifierBackend.MINICHECK,
         model_name="mini-model",
         cache_dir="/tmp/mini-cache",
     )
 
-    assert verifier is sentinel
-    assert kwargs == {"model_name": "mini-model", "cache_dir": "/tmp/mini-cache"}
+    assert isinstance(verifier, OfflineBaselineVerifier)
+    assert captured == {"model_name": "mini-model", "cache_dir": "/tmp/mini-cache"}
 
 
 def test_signal_ensemble_verifier_combines_signals_conservatively() -> None:

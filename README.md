@@ -203,6 +203,9 @@ The pipeline trace emitted by `pragmalens run` now includes stage timing
 metadata alongside the normal JSON trace files, so duration regressions can be
 compared across runs.
 
+For the current evaluation workflow, corpus baselines, and research notes, see
+[docs/evaluation-workflow.md](docs/evaluation-workflow.md).
+
 ## Semantic Golden Set
 
 Use the internal golden set to keep promise/review/antecedent ambiguity explicit:
