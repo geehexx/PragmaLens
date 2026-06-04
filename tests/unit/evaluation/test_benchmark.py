@@ -12,9 +12,14 @@ from pragmalens.evaluation import (
     load_corpus_benchmark_batch,
     render_corpus_benchmark_summary,
     run_corpus_benchmark,
+    run_corpus_benchmark_files,
 )
 from pragmalens.models import VerificationStatus
-from pragmalens.verifier import CrossEncoderNliVerifier, MiniCheckVerifier, OfflineBaselineVerifier
+from pragmalens.verifier import (
+    CrossEncoderNliVerifier,
+    MiniCheckVerifier,
+    OfflineBaselineVerifier,
+)
 from pragmalens.verifier_calibration import VerifierCalibrationCase
 
 
@@ -234,3 +239,48 @@ def test_render_corpus_benchmark_summary_includes_core_fields() -> None:
     assert "Corpus Benchmark: RAGTruth" in summary
     assert "Run ID: `benchmark-run`" in summary
     assert "Selected backend: `offline`" in summary
+
+
+def test_run_corpus_benchmark_files_loads_inputs_and_emits_results(tmp_path: Path) -> None:
+    batch_path = tmp_path / "batch.json"
+    approval_path = tmp_path / "approval.json"
+    batch_path.write_text(
+        """
+{
+  "corpus_id": "CORPUS-CAND-001",
+  "cases": [
+    {
+      "case_id": "supported",
+      "document_id": "doc",
+      "document_text": "supported claim",
+      "claim_text": "supported claim",
+      "gold_status": "supported"
+    }
+  ]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    approval_path.write_text(
+        """
+{
+  "corpus_id": "CORPUS-CAND-001",
+  "corpus_name": "RAGTruth",
+  "corpus_version": "2024-02",
+  "source_uri": "https://github.com/ParticleMedia/RAGTruth",
+  "approval_status": "approved",
+  "approval_evidence": ["public repository README and MIT license"]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    report, metadata, recommendation = run_corpus_benchmark_files(
+        corpus_batch_path=batch_path,
+        approval_metadata_path=approval_path,
+        run_id="files-run",
+    )
+
+    assert report.run_id == "files-run"
+    assert metadata.run_id == "files-run"
+    assert recommendation.backend == "offline"

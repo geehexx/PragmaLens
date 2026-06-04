@@ -10,10 +10,8 @@ import typer
 
 from pragmalens.core import derive_document_id, run_pipeline
 from pragmalens.evaluation import (
-    load_corpus_approval_metadata,
-    load_corpus_benchmark_batch,
     render_corpus_benchmark_summary,
-    run_corpus_benchmark,
+    run_corpus_benchmark_files,
 )
 from pragmalens.schema import export_schema
 
@@ -120,11 +118,9 @@ def benchmark(
     ),
 ) -> None:
     """Run a corpus-gated benchmark and emit report plus sidecar metadata."""
-    batch = load_corpus_benchmark_batch(corpus_batch)
-    approval = load_corpus_approval_metadata(corpus_metadata)
-    report, metadata, recommendation = run_corpus_benchmark(
-        batch,
-        approval,
+    report, metadata, recommendation = run_corpus_benchmark_files(
+        corpus_batch_path=corpus_batch,
+        approval_metadata_path=corpus_metadata,
         selected_backend=selected_backend,
         run_id=run_id,
     )

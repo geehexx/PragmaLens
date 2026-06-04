@@ -121,7 +121,6 @@ def run_corpus_benchmark(
         approval_evidence=list(approval.approval_evidence),
         case_count=len(calibration_cases),
     )
-    report.run_id = resolved_run_id
     return report, metadata, recommendation
 
 
