@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "agent": [
+      {
+        "text": "Alice",
+        "confidence": 0.9956095814704895,
+        "start": 0,
+        "end": 5
+      }
+    ],
+    "action": [
+      {
+        "text": "review",
+        "confidence": 0.7919526696205139,
+        "start": 58,
+        "end": 64
+      },
+      {
+        "text": "ship the report",
+        "confidence": 0.6691595911979675,
+        "start": 18,
+        "end": 33
+      }
+    ],
+    "condition": []
+  }
+}

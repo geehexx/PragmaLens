@@ -66,11 +66,14 @@ def test_cli_emits_report_manifest_markdown_and_trace_with_shared_run_id(tmp_pat
     assert manifest_payload["artifacts"]["trace_manifest_json"] == str(
         trace / "trace_manifest.json"
     )
+    assert manifest_payload["artifacts"]["stage_timings_json"] == str(trace / "stage_timings.json")
     assert report_md.exists()
     assert (trace / "stage_results.json").exists()
+    assert (trace / "stage_timings.json").exists()
     assert (trace / "verification.json").exists()
     assert (trace / "findings.json").exists()
     assert "verification.json" in trace_manifest_payload["files"]
+    assert "stage_timings.json" in trace_manifest_payload["files"]
 
 
 def test_cli_renders_synthesized_question_and_actionability(

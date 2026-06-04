@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from pragmalens.evaluation import GoldenSetBatch
 from pragmalens.models import (
     EvidenceCandidate,
     NeutralReport,
@@ -80,9 +81,13 @@ def main() -> None:
         },
         "profile": {
             "name": "default",
-            "langextract_fixture": "tests/fixtures/langextract_sample.jsonl",
-            "gliner2_fixture": "tests/fixtures/gliner2_sample.json",
-            "label_map": {},
+            "langextract_fixture": "captured/langextract.jsonl",
+            "gliner2_fixture": "captured/gliner2.json",
+            "label_map": {
+                "agent": "commitment_owner",
+                "action": "commitment_action",
+                "condition": "condition",
+            },
         },
         "verification_verdict": {
             "candidate_id": "candidate-1",
@@ -90,10 +95,36 @@ def main() -> None:
             "rationale": "fixture",
             "evidence_ids": [],
         },
+        "golden_set": {
+            "golden_set_id": "pragmalens-golden-2026-06",
+            "cases": [
+                {
+                    "case_id": "recommendation-not-promise",
+                    "document_id": "golden-001",
+                    "document_text": "The team should ship the verifier if evidence is present.",
+                    "annotations": [
+                        {
+                            "label": "promise",
+                            "span": {
+                                "document_id": "golden-001",
+                                "start_char": 9,
+                                "end_char": 56,
+                                "text": "should ship the verifier if evidence is present",
+                            },
+                            "resolved_to": "recommendation",
+                            "notes": ["Modal 'should' marks a recommendation, not a promise."],
+                        }
+                    ],
+                }
+            ],
+        },
     }
     for name, sample in samples.items():
         try:
-            models[name].model_validate(sample)
+            if name == "golden_set":
+                GoldenSetBatch.model_validate(sample)
+            else:
+                models[name].model_validate(sample)
         except ValidationError as exc:
             fail(f"{name} sample failed validation: {exc}")
 

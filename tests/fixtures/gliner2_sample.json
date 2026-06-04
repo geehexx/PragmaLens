@@ -1,9 +1,0 @@
-{
-  "entities": [
-    {"start_char": 5, "end_char": 7, "label": "agent", "kind": "entity", "confidence": 0.82},
-    {"start_char": 8, "end_char": 12, "label": "action", "kind": "claim", "confidence": 0.77}
-  ],
-  "relations": [
-    {"head": 1, "tail": 0, "label": "owned_by"}
-  ]
-}

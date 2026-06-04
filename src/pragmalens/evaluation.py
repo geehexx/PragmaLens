@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from pragmalens.models import VerificationStatus, VerifierCalibrationRecommendation
+from pragmalens.models import SpanRef, VerificationStatus, VerifierCalibrationRecommendation
 from pragmalens.verifier import (
     CrossEncoderNliVerifier,
     MiniCheckVerifier,
@@ -26,6 +26,12 @@ from pragmalens.verifier_calibration import (
 from pragmalens.verifier_comparison import CalibrationExample, recommend_calibration
 
 ApprovalStatus = Literal["approved", "pending", "rejected"]
+GoldenAnnotationLabel = Literal[
+    "promise",
+    "review_commitment",
+    "antecedent_resolution",
+    "team_membership",
+]
 
 
 class CorpusBenchmarkBatch(BaseModel):
@@ -50,6 +56,37 @@ class CorpusApprovalMetadata(BaseModel):
     source_uri: str = Field(min_length=1)
     approval_status: ApprovalStatus
     approval_evidence: list[str] = Field(default_factory=list)
+
+
+class GoldenSetAnnotation(BaseModel):
+    """Explicit semantic annotation used by the internal golden set."""
+
+    label: GoldenAnnotationLabel
+    span: SpanRef
+    resolved_to: str | None = None
+    notes: list[str] = Field(default_factory=list)
+
+
+class GoldenSetCase(BaseModel):
+    """One labeled semantic regression case for the internal golden set."""
+
+    case_id: str = Field(min_length=1)
+    document_id: str = Field(min_length=1)
+    document_text: str = Field(min_length=1)
+    annotations: list[GoldenSetAnnotation] = Field(default_factory=list)
+
+
+class GoldenSetBatch(BaseModel):
+    """Approved semantic-gold set grouped under one internal identifier."""
+
+    golden_set_id: str = Field(min_length=1)
+    cases: list[GoldenSetCase] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_cases(self) -> GoldenSetBatch:
+        if not self.cases:
+            raise ValueError("golden set must include at least one case")
+        return self
 
 
 class CorpusBenchmarkRunMetadata(BaseModel):
@@ -80,6 +117,14 @@ def load_corpus_approval_metadata(path: str | Path) -> CorpusApprovalMetadata:
     if not isinstance(payload, dict):
         raise ValueError("corpus approval file must contain a JSON object")
     return CorpusApprovalMetadata.model_validate(payload)
+
+
+def load_golden_set_batch(path: str | Path) -> GoldenSetBatch:
+    """Load a semantic golden set from a JSON object on disk."""
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("golden set file must contain a JSON object")
+    return GoldenSetBatch.model_validate(payload)
 
 
 def run_corpus_benchmark(

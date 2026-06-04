@@ -1,11 +1,11 @@
 {
-  "corpus_id": "CORPUS-CAND-001",
+  "corpus_id": "ragtruth-15592-mini",
   "corpus_name": "RAGTruth",
   "corpus_version": "2024-02",
-  "source_uri": "https://github.com/ParticleMedia/RAGTruth",
+  "source_uri": "https://raw.githubusercontent.com/ParticleMedia/RAGTruth/main/dataset/source_info.jsonl",
   "approval_status": "approved",
   "approval_evidence": [
-    "public repository README and MIT license",
-    "open-access ACL paper and dataset release history"
+    "upstream dataset source_id 15592 from RAGTruth source_info.jsonl",
+    "upstream response id 0 is supported and response id 2 contains the explicit 2022 hallucination"
   ]
 }

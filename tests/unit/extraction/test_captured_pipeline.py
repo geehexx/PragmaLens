@@ -130,15 +130,24 @@ def test_merge_dedupe_surfaces_label_conflicts_and_dedupes_relations() -> None:
 
 
 def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
-    text = "When AI acts"
+    text = Path("src/pragmalens/fixtures/captured/input.md").read_text(encoding="utf-8")
+    expected_prompt_hash = "sha256:e38173b7d773c7f5c7dd3fc2a23ab7f541691449cbed44aefc7bcc39451dff48"
     out = run_captured_extraction_pipeline(
         text=text,
-        langextract_jsonl="tests/fixtures/langextract_sample.jsonl",
-        gliner2_json="tests/fixtures/gliner2_sample.json",
+        langextract_jsonl="captured/langextract.jsonl",
+        gliner2_json="captured/gliner2.json",
         trace_dir=tmp_path / "trace",
     )
 
-    assert out["langextract_meta"]["prompt_hash"] == "sha256:fixture-pr03-v1"
+    assert out["langextract_meta"]["prompt_hash"] == expected_prompt_hash
+    assert out["langextract_meta"]["example_set"] == "pragmalens-live-capture:v1"
+    assert [candidate.label for candidate in out["valid_candidates"]] == [
+        "actor",
+        "commitment",
+        "commitment_owner",
+        "commitment_action",
+        "commitment_action",
+    ]
     assert (tmp_path / "trace" / "langextract_candidates.json").exists()
     assert (tmp_path / "trace" / "gliner2_candidates.json").exists()
     assert (tmp_path / "trace" / "evidence_normalization.json").exists()
@@ -153,13 +162,14 @@ def test_captured_pipeline_writes_traces(tmp_path: Path) -> None:
         "quarantined",
         "stats",
     ]
-    assert normalization_payload["stats"]["input_candidates"] == 3
-    assert normalization_payload["stats"]["valid_candidates"] == 3
-    assert normalization_payload["stats"]["quarantined_candidates"] == 1
+    assert normalization_payload["stats"]["input_candidates"] == 5
+    assert normalization_payload["stats"]["valid_candidates"] == 5
+    assert normalization_payload["stats"]["quarantined_candidates"] == 0
     assert normalization_payload["stats"]["input_candidates_by_source"] == {
-        "gliner2": 2,
-        "langextract": 1,
+        "gliner2": 3,
+        "langextract": 2,
     }
+    assert normalization_payload["candidates"][0]["warnings"] == ["label_conflict", "kind_conflict"]
 
 
 def test_captured_pipeline_preserves_quarantined_gliner2_trace_details(tmp_path: Path) -> None:
@@ -172,7 +182,7 @@ def test_captured_pipeline_preserves_quarantined_gliner2_trace_details(tmp_path:
 
     out = run_captured_extraction_pipeline(
         text=text,
-        langextract_jsonl="tests/fixtures/langextract_sample.jsonl",
+        langextract_jsonl="captured/langextract.jsonl",
         gliner2_json=gliner2_path,
         trace_dir=tmp_path / "trace",
     )

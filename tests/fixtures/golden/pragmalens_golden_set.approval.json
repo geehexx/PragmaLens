@@ -1,0 +1,11 @@
+{
+  "corpus_id": "pragmalens-golden-2026-06",
+  "corpus_name": "PragmaLens Golden Set",
+  "corpus_version": "2026-06",
+  "source_uri": "urn:pragmalens:golden-set",
+  "approval_status": "approved",
+  "approval_evidence": [
+    "internal semantic regression cases derived from current promise/review ambiguity gaps",
+    "manual review confirmed each annotation is explicit and reviewable"
+  ]
+}

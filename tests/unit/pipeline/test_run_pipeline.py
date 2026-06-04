@@ -85,11 +85,21 @@ def test_run_pipeline_outputs_spacy_artifacts_and_valid_cues(tmp_path: Path) -> 
     assert report.findings == []
     assert manifest.stage_health["spacy_substrate"] == "ok"
     assert manifest.stages_requested == REQUIRED_STAGE_IDS
+    assert "stage_timings_json" in manifest.artifacts
+    assert "total_duration_ms" in json.loads(
+        (trace_dir / "trace_manifest.json").read_text(encoding="utf-8")
+    )
 
     spacy_artifact = json.loads((trace_dir / "spacy_substrate.json").read_text(encoding="utf-8"))
     assert spacy_artifact["sentences"]
     assert spacy_artifact["tokens"]
     assert spacy_artifact["cues"]
+    stage_results = json.loads((trace_dir / "stage_results.json").read_text(encoding="utf-8"))
+    assert all(result["duration_ms"] is not None for result in stage_results)
+    stage_timings = json.loads((trace_dir / "stage_timings.json").read_text(encoding="utf-8"))
+    assert stage_timings["stages"]
+    assert stage_timings["total_duration_ms"] >= 0
+    assert [item["stage_id"] for item in stage_timings["stages"]] == REQUIRED_STAGE_IDS
 
     for cue in spacy_artifact["cues"]:
         assert is_valid_span(text, cue["start_char"], cue["end_char"])

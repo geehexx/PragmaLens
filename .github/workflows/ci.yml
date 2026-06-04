@@ -80,10 +80,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - name: Gitleaks
-        uses: DariuszPorowski/github-action-gitleaks@v2
+        uses: DariuszPorowski/github-action-gitleaks@a027585cb1f2780aa441f20f4d0aabf8b1a0d90e # v2
         with:
           config: .gitleaks.toml
           no_git: true

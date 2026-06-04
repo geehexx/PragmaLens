@@ -1,7 +1,7 @@
 {
   "name": "default",
-  "langextract_fixture": "tests/fixtures/langextract_sample.jsonl",
-  "gliner2_fixture": "tests/fixtures/gliner2_sample.json",
+  "langextract_fixture": "captured/langextract.jsonl",
+  "gliner2_fixture": "captured/gliner2.json",
   "label_map": {
     "agent": "commitment_owner",
     "action": "commitment_action",
