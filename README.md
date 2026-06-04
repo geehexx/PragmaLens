@@ -164,7 +164,7 @@ uv sync --group live --group qa
   - `PRAGMALENS_MINICHECK_CACHE_DIR`
   - `PRAGMALENS_CROSSENCODER_MODEL`
 
-Live/model tests remain outside default CI. Default CI stays offline and deterministic.
+Default CI stays offline for the core lanes and also includes a bounded CPU-safe live-verifier slice for MiniCheck and CrossEncoder.
 
 ## Corpus Benchmarks
 

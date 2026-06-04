@@ -125,12 +125,16 @@ def _check_readme() -> None:
         "uv sync --group qa",
         "uv sync --group live",
         "uv run nox -s dev-fast",
+        "uv run nox -s live-verifier",
         "uv run nox -s dev-live",
+        "CPU-safe live-verifier lane",
         "lint-imports",
     ]
     missing = [snippet for snippet in required_snippets if snippet not in readme_text]
     if missing:
         fail(f"README missing lane/install guidance: {missing}")
+    if "Live/model tests remain outside default CI" in readme_text:
+        fail("README still contains stale default-CI wording for live/model tests")
     ok("README documents the minimal default install and opt-in lanes")
 
 
