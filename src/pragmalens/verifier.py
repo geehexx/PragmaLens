@@ -500,17 +500,28 @@ def build_verifier_adapter(
         selected = VerifierBackend(backend)
     except ValueError as exc:
         raise ValueError(f"Unsupported verifier backend: {backend!r}") from exc
-    settings = load_settings()
     if selected is VerifierBackend.OFFLINE:
         return OfflineBaselineVerifier()
     if selected is VerifierBackend.MINICHECK:
+        settings = load_settings() if model_name is None or cache_dir is None else None
         return _build_minicheck_from_runtime(
-            model_name=model_name or settings.minicheck_model,
-            cache_dir=cache_dir or str(settings.minicheck_cache_dir),
+            model_name=model_name or (settings.minicheck_model if settings else "roberta-large"),
+            cache_dir=cache_dir
+            or (
+                str(settings.minicheck_cache_dir)
+                if settings is not None
+                else ".local_state/minicheck-cache"
+            ),
         )
     if selected is VerifierBackend.CROSSENCODER_NLI:
+        settings = load_settings() if model_name is None else None
         return _build_crossencoder_from_runtime(
-            model_name=model_name or settings.crossencoder_model,
+            model_name=model_name
+            or (
+                settings.crossencoder_model
+                if settings is not None
+                else "cross-encoder/nli-deberta-v3-base"
+            ),
             label_mapping=label_mapping or ("contradiction", "entailment", "neutral"),
         )
     raise ValueError(f"Unsupported verifier backend: {backend!r}")

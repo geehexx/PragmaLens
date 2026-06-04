@@ -12,6 +12,7 @@ from pragmalens.models import (
 from pragmalens.verifier import (
     CrossEncoderNliVerifier,
     MiniCheckVerifier,
+    OfflineBaselineVerifier,
     SignalEnsembleVerifier,
     VerifierBackend,
     _status_for_crossencoder,
@@ -111,6 +112,45 @@ def test_status_helpers_reject_missing_probability_fields() -> None:
 def test_build_verifier_adapter_rejects_unknown_backend() -> None:
     with pytest.raises(ValueError, match="Unsupported verifier backend"):
         build_verifier_adapter("unknown-backend")
+
+
+def test_build_verifier_adapter_returns_offline_without_loading_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "pragmalens.verifier.load_settings",
+        lambda: (_ for _ in ()).throw(AssertionError("offline should not load settings")),
+    )
+
+    verifier = build_verifier_adapter(VerifierBackend.OFFLINE)
+
+    assert isinstance(verifier, OfflineBaselineVerifier)
+    assert getattr(verifier, "backend", None) is VerifierBackend.OFFLINE
+
+
+def test_build_verifier_adapter_uses_explicit_minicheck_overrides_without_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentinel = object()
+    monkeypatch.setattr(
+        "pragmalens.verifier._build_minicheck_from_runtime",
+        lambda **kwargs: (sentinel, kwargs),
+    )
+    monkeypatch.setattr(
+        "pragmalens.verifier.load_settings",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("explicit overrides should not load settings")
+        ),
+    )
+
+    verifier, kwargs = build_verifier_adapter(
+        VerifierBackend.MINICHECK,
+        model_name="mini-model",
+        cache_dir="/tmp/mini-cache",
+    )
+
+    assert verifier is sentinel
+    assert kwargs == {"model_name": "mini-model", "cache_dir": "/tmp/mini-cache"}
 
 
 def test_signal_ensemble_verifier_combines_signals_conservatively() -> None:
