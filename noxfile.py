@@ -63,6 +63,23 @@ def dev_live(session: nox.Session) -> None:
     _run_uv(session, "run", "--group", "live", "pytest", "-q", "-m", "live_smoke")
 
 
+@nox.session(name="live-verifier")
+def live_verifier(session: nox.Session) -> None:
+    """Run the CPU-safe live verifier slice used by default CI."""
+    session.env["PRAGMALENS_ENABLE_LIVE_SMOKE"] = "1"
+    session.env["CUDA_VISIBLE_DEVICES"] = ""
+    _run_uv(
+        session,
+        "run",
+        "--group",
+        "live",
+        "pytest",
+        "tests/live_smoke/test_runtime_backends.py",
+        "-k",
+        "minicheck or crossencoder",
+    )
+
+
 @nox.session
 def build(session: nox.Session) -> None:
     """Build distributable artifacts for the current working tree."""

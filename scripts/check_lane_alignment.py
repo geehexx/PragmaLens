@@ -21,6 +21,13 @@ DEV_LIVE_PATTERN = re.compile(
     r'_run_uv\(session,\s*"run",\s*"--group",\s*"live",\s*"pytest",\s*'
     r'"-q",\s*"-m",\s*"live_smoke"\)'
 )
+LIVE_VERIFIER_SNIPPETS = (
+    '"--group", "live"',
+    '"pytest"',
+    '"tests/live_smoke/test_runtime_backends.py"',
+    '"-k"',
+    '"minicheck or crossencoder"',
+)
 
 
 def fail(msg: str) -> None:
@@ -95,6 +102,8 @@ def _check_noxfile() -> None:
         fail("dead service-integration nox session still exists")
     if "lint-imports" not in nox_text:
         fail("nox lint session no longer runs import-linter")
+    if not all(snippet in nox_text for snippet in LIVE_VERIFIER_SNIPPETS):
+        fail("live-verifier nox session is not pinned to the CPU-safe live verifier slice")
     ok("nox sessions match the trimmed lane surface")
 
 
@@ -135,6 +144,7 @@ def _check_ci() -> None:
         "uv run nox -s repo-layout",
         "uv run nox -s lint types",
         "uv run nox -s offline-verify build",
+        "uv run nox -s live-verifier",
     ]
     missing_ci = [snippet for snippet in required_ci_snippets if snippet not in ci_text]
     if missing_ci:
